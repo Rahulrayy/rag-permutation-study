@@ -6,6 +6,8 @@ context selection in RAG.
 Full rationale, research questions and design: [`rag-permutation-project-plan.md`](rag-permutation-project-plan.md).
 Pre-registered analysis: [`ANALYSIS_PLAN.md`](ANALYSIS_PLAN.md) — **must be filled in and
 committed before the main run.**
+Picking this up cold, or after a break: [`HANDOFF.md`](HANDOFF.md) — current state,
+locked decisions, design invariants, and what to do next.
 
 ## What this is
 
