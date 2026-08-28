@@ -1,0 +1,105 @@
+"""The two-level bootstrap.
+
+Sec. 4.6 calls this out as the single easiest place to manufacture a fake result:
+permutations are nested within queries, and resampling the P x N cells
+independently inflates n by 5x. The first test here is the one that matters.
+"""
+
+import numpy as np
+import pytest
+
+from src.metrics import placebo_gap
+from src.stats import holm, two_level_bootstrap
+
+
+def _nested_scores(n_queries=40, n_perms=5, seed=0):
+    """Strong between-query variation, small within-query variation.
+
+    This is the structure that punishes naive flattening: most of the spread
+    lives between queries, so treating permutations as independent observations
+    massively understates the true uncertainty.
+    """
+    rng = np.random.default_rng(seed)
+    a, b = {}, {}
+    for i in range(n_queries):
+        level_a = rng.normal(0.6, 0.25)
+        level_b = rng.normal(0.5, 0.25)
+        a[f"q{i}"] = list(level_a + rng.normal(0, 0.01, n_perms))
+        b[f"q{i}"] = list(level_b + rng.normal(0, 0.01, n_perms))
+    return {"m": a, "placebo_pos": b}
+
+
+def test_bootstrap_recovers_the_point_estimate():
+    scores = _nested_scores()
+    res = two_level_bootstrap(
+        scores, lambda s: placebo_gap(s, "m"), n_replicates=400, seed=1
+    )
+    assert res.point == pytest.approx(placebo_gap(scores, "m"))
+    assert res.lo < res.point < res.hi
+
+
+def test_nesting_is_not_flattened():
+    """The regression guard for the 5x-n inflation warned about in Sec. 4.6.
+
+    A bootstrap that resampled permutations independently would produce a CI
+    roughly sqrt(P) times too narrow. Compare against that wrong answer directly.
+    """
+    scores = _nested_scores(n_queries=40, n_perms=5)
+    correct = two_level_bootstrap(
+        scores, lambda s: placebo_gap(s, "m"), n_replicates=600, seed=1
+    )
+    correct_width = correct.hi - correct.lo
+
+    # The mistake, made explicit: every (query, permutation) cell as its own unit.
+    flat = {
+        arm: {f"{q}_{i}": [v] for q, vals in per_q.items() for i, v in enumerate(vals)}
+        for arm, per_q in scores.items()
+    }
+    wrong = two_level_bootstrap(
+        flat, lambda s: placebo_gap(s, "m"), n_replicates=600, seed=1
+    )
+    wrong_width = wrong.hi - wrong.lo
+
+    assert correct_width > wrong_width * 1.5, (
+        f"two-level CI ({correct_width:.4f}) is not meaningfully wider than the "
+        f"flattened one ({wrong_width:.4f}); nesting is being ignored"
+    )
+
+
+def test_repeated_queries_are_counted_twice():
+    """A query drawn twice must contribute twice, not collapse to one dict key."""
+    scores = {"m": {"q1": [1.0], "q2": [0.0]}, "placebo_pos": {"q1": [0.0], "q2": [0.0]}}
+    res = two_level_bootstrap(
+        scores, lambda s: placebo_gap(s, "m"), n_replicates=500, seed=3
+    )
+    # Draws are {q1,q1}, {q1,q2}, {q2,q1}, {q2,q2} -> gaps 1.0, 0.5, 0.5, 0.0.
+    assert set(np.unique(np.round(res.replicates, 6))) <= {0.0, 0.5, 1.0}
+    assert res.replicates.max() == pytest.approx(1.0)
+
+
+def test_bootstrap_is_deterministic_under_seed():
+    scores = _nested_scores()
+    kwargs = dict(n_replicates=200, seed=42)
+    a = two_level_bootstrap(scores, lambda s: placebo_gap(s, "m"), **kwargs)
+    b = two_level_bootstrap(scores, lambda s: placebo_gap(s, "m"), **kwargs)
+    assert np.array_equal(a.replicates, b.replicates)
+
+
+def test_excludes_zero_flags_a_real_effect():
+    scores = _nested_scores()
+    res = two_level_bootstrap(
+        scores, lambda s: placebo_gap(s, "m"), n_replicates=400, seed=1
+    )
+    assert res.excludes_zero
+
+
+def test_holm_is_step_down_and_monotone():
+    adj = holm({"a": 0.01, "b": 0.04, "c": 0.2})
+    assert adj["a"] == pytest.approx(0.03)
+    assert adj["b"] == pytest.approx(0.08)
+    assert adj["c"] == pytest.approx(0.2)
+    assert adj["a"] <= adj["b"] <= adj["c"]
+
+
+def test_holm_caps_at_one():
+    assert all(v <= 1.0 for v in holm({"a": 0.6, "b": 0.7, "c": 0.9}).values())

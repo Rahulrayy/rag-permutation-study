@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+
+# Data & model caches (never commit these)
+data/
+cache/
+*.sqlite
+*.sqlite-journal
+generations.jsonl
+hf_cache/          # only if someone re-points cache_dir at the project
+
+# Results: commit aggregate CSVs, not raw generations (see plan Sec. 6).
+# Raw generations are reproducible from the cache and are large; aggregates
+# under results/ are what belongs in the repo.
+results/raw/
+results/**/generations.csv
+results/*_dummy/
+analysis/figures/
+
+# Lockfile IS committed (reproducibility); the venv is not.
+
+# Secrets
+.env
+.pytest_cache/

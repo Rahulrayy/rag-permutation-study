@@ -1,0 +1,40 @@
+# Week-1 pilot: `full` arm only, measure permutation SD.
+# This config exists to answer one question: is the premise alive?
+# Kill criterion: median within-query SD of token-F1 across permutations < 0.02.
+name: pilot_w1
+
+data:
+  dataset: hotpotqa_distractor
+  split: validation
+  n_queries: 100
+  seed: 20260828
+  stratify_by: hop_type
+  memorization_filter: false   # week 1 measures raw variance; filter lands week 3
+
+generator:
+  backend: local
+  model: Qwen/Qwen2.5-3B-Instruct
+  quantization: 4bit
+  max_new_tokens: 32
+  # 6.4 GB VRAM: batch 5 already reached 5.9 GB in the smoke test.
+  batch_size: 4
+  # Greedy everywhere. Sampling would confound sampling noise with
+  # permutation noise and collapse the whole design (plan Sec. 4.2).
+  temperature: 0.0
+  do_sample: false
+  seed: 20260828
+
+arms: [full]
+budgets: [10]
+
+permutation:
+  n_permutations: 5
+  strategies: [rank, reverse, random, random, random]
+  seed: 20260828
+
+cache:
+  backend: sqlite
+  path: cache/generations.sqlite
+
+output:
+  results_dir: results/pilot_w1

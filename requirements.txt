@@ -1,0 +1,38 @@
+# Loose ranges for a fresh setup. For an exact reproduction of a run, use
+# requirements.lock (pip freeze) and record its commit in ANALYSIS_PLAN.md Sec. 8.
+#
+# torch must come from the CUDA index, not PyPI:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu128
+# Verified on this machine: torch 2.11.0+cu128, RTX 3060 Laptop (6.4 GB), CUDA 12.8.
+
+# Core
+numpy>=1.26
+pandas>=2.2
+pyyaml>=6.0
+tqdm>=4.66
+
+# Data
+datasets>=2.19
+
+# Local generator (4-bit 3B on the 3060)
+torch>=2.3
+transformers>=4.44
+accelerate>=0.33
+bitsandbytes>=0.43
+sentencepiece>=0.2
+
+# Rerank baseline / Provence (week 2)
+sentence-transformers>=3.0
+
+# Cross-generator check (week 5)
+groq>=0.11
+
+# Analysis
+matplotlib>=3.8
+jupyter>=1.0
+
+# Not yet installed, needed for the llmlingua2 arm (week 2):
+# llmlingua
+
+# Tests
+pytest>=8.0
