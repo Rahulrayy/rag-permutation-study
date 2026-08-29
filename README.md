@@ -3,18 +3,69 @@
 **Is it the pruning, or the ordering?** A permutation-controlled re-evaluation of
 context selection in RAG.
 
-## The gap
+Reorder the passages in a RAG context without changing a word of them, and the
+answer changes. Every published context-pruning method is evaluated in one fixed
+order — and pruning itself *moves* passages between positions. This study
+measures how much of a reported pruning gain is actually that.
+
+---
+
+## Findings
+
+**Answer quality is bimodal under reordering, not uniformly noisy.**
+Across 100 questions × 5 permutations of a fixed ten-paragraph context, greedy
+decoding, content identical throughout:
+
+| | |
+|---|---|
+| queries whose answer never changes | **50%** |
+| queries that do change | **50%**, swinging ~**0.42** token-F1 |
+| median within-query SD (pre-registered kill threshold was 0.02) | **0.0263** |
+| the same, on the memorization-filtered set | **0.1209** |
+
+Both medians understate it. The distribution has two modes and the median falls
+on the seam between them, so it is unstable to a one-query change in either
+direction. The result that does not depend on the median: **half these questions
+are perfectly stable under reordering and half swing by roughly 0.42 F1 on
+identical content.**
+
+**Two pruning methods are order-dependent in their internals, not just their
+output.** This is the sharper version of the thesis: not "the score moves" but
+"the method does something different depending on what order you showed it".
+
+- **An LLM asked which passages to keep picks different ones when shown the same
+  passages in a different order.** Selection Jaccard across three presentations is
+  **0.263** — against 1.000 for a selector that scores passages independently, and
+  0.048 for chance. **The selection changed in 19 of 20 questions.** So a
+  published LLM-pruner result is one draw from a distribution over selections that
+  its paper does not mention.
+- **LLMLingua-2's compression is order-dependent too**, when applied to a
+  concatenated context the normal way: **0 of 100** passages compressed identically
+  across orderings. It is a deterministic token classifier, which makes this the
+  more surprising of the two. The arm here therefore compresses each passage
+  independently, which restores stability to 100/100.
+
+**Memorization is not the explanation.** Only **10/100** questions are answerable
+with no passages at all (mean no-context token-F1 0.115), so the effect is not a
+3B model reciting Wikipedia.
+
+*Leave-one-out oracle, the second dataset and the hosted cross-generator
+replication are still to come; see Status.*
+
+---
+
+## Why this is a gap
 
 Context pruning is a crowded subfield: a dozen methods claim they can discard
-60–90% of retrieved context with little quality loss. Every one of them is
-evaluated with the retrieved passages in **one fixed order**. Separately, other
-work has established that RAG answers are unstable under permutation of that same
-set — reorder the passages, keep the content identical, and the answer changes.
+60–90% of retrieved context with little quality loss. Every one is evaluated with
+the passages in one fixed order — usually retriever rank. Separately, other work
+has established that RAG answers are unstable under permutation of that same set.
 
 Nobody has put those two facts together. Pruning does not only remove content, it
-**changes positions**: dropping chunks 3, 5 and 7 from a ten-chunk context
+**changes positions**: dropping passages 3, 5 and 7 from a ten-passage context
 promotes 8, 9 and 10 into higher-visibility slots. So part of what looks like
-better evidence selection may be a lucky interaction with position bias.
+better evidence selection may be a lucky interaction with position bias, measured
+against a reference point that moves.
 
 This is not a new pruning method. It is a protocol, two controls nobody runs, and
 a number.
@@ -23,88 +74,61 @@ a number.
 
 - **Data.** HotpotQA distractor: ten paragraphs per question, two gold, no
   retrieval needed. Rows not shipping exactly ten paragraphs are excluded
-  (60/7,405, 0.81%) so that a position, a positional bucket and a keep-k budget
-  mean the same thing across queries.
-- **Generator.** Qwen2.5-3B-Instruct, 4-bit, local. Local because leave-one-out
+  (60/7,405, 0.81%) so a position, a positional bucket and a keep-k budget mean
+  the same thing across questions.
+- **Generator.** Qwen2.5-3B-Instruct, 4-bit, local — because leave-one-out
   attribution needs the log-probability of the answer sequence, which hosted APIs
   generally do not expose.
 - **Greedy decoding everywhere.** Sampling noise and permutation noise would be
   confounded and every number would be meaningless. Guarded in three places.
-- **The permutation protocol.** For every (query, arm, budget) cell, generate
-  under P=5 orderings of the *kept* chunks — as-given, reverse, and three seeded
-  random. Random orderings are seeded per query, so the three draws are not one
+- **The permutation protocol.** For every (question, arm, budget) cell, generate
+  under P=5 orderings of the *kept* passages — as-given, reverse, and three seeded
+  random. Random orderings are seeded per question, so the three draws are not one
   shared trio reused across the dataset.
 - **Selection, rewriting and ordering are three separate steps.** `select()`
   returns indices, `rewrite()` returns text, `permute()` returns order. Conflating
-  any two of them is the error the whole study is about.
+  any two of them is the error this study is about.
 
 ### Arms
 
 | Arm | What it is |
 |---|---|
-| `full` | all ten chunks, upper reference |
+| `full` | all ten passages, upper reference |
 | `nocontext` | question only — the memorization control |
 | `rerank_topk` | cross-encoder rerank, keep top-k. The OAE denominator |
 | `provence_rerank` | Provence's reranker only, original text |
 | `provence_full` | Provence as published, sentence-pruned text |
 | `llmlingua2` | token-level compression, budget spent as a rate |
-| `llm_pruner` | ask the generator which chunks to keep |
+| `llm_pruner` | ask the generator which passages to keep |
 | `random_drop` | noise floor |
 | **`placebo_pos`** | **drop k by position, not content — the novel control** |
-| `loo_oracle` | keep the k chunks with the largest LOO log-prob drop |
+| `loo_oracle` | keep the k passages with the largest LOO log-prob drop |
 
 ### Derived quantities
 
 **Order-Adjusted Effect** — a method's gain over baseline, divided by the
-baseline's within-query permutation SD. How many orderings-worth of noise does
+baseline's within-question permutation SD. How many orderings-worth of noise does
 this method actually buy you. **Rank Flip Rate** — the fraction of method-pair
 comparisons whose sign reverses under some single ordering. **Placebo Gap** —
 quality against the position-matched placebo at equal keep-count; near zero means
 the method is not doing content selection. **Oracle Gap** — headroom against the
 leave-one-out ceiling.
 
-## Findings so far
-
-**The premise holds.** Week-1 gate: median within-query SD of token-F1 across
-five permutations is **0.0263** against a pre-registered kill threshold of 0.02
-(n=100, `full` arm). On the filtered analysis population it is **0.1209**.
-
-Both numbers understate the result, because the distribution is bimodal and the
-median lands on the seam between its two halves. The finding that does not depend
-on the median: **half the queries never move at all, and the half that do swing by
-roughly 0.42 F1 on identical content under greedy decoding.**
-
-**Two methods are order-dependent in their internals, not just their output.**
-
-- `llm_pruner`'s *selection* changes with the order it was shown the passages.
-  Jaccard across three presentations is **0.263**, against 1.000 for a selector
-  that scores chunks independently and 0.048 for chance. The selection changed in
-  **19 of 20** queries.
-- LLMLingua-2's compression is order-dependent when applied to a concatenated
-  context: **0 of 100** chunks compressed identically across orderings. It is a
-  deterministic token classifier, which makes this the more surprising of the two.
-  The arm therefore compresses each chunk independently.
-
-**Memorization is low.** Only 10/100 queries are answerable with no passages at
-all (mean no-context token-F1 0.115), so the memorization filter keeps 90% rather
-than gutting the analysis population.
-
 ## Statistics
 
-Permutations are nested within queries, so the P×N cells are **not** independent —
-treating them as such inflates n by 5× and manufactures significance. The
-resampling unit is the query, and all P of its permutations travel with it. The
-test suite contains a regression guard that builds data with strong between-query
-and weak within-query variation and asserts the correct CI is >1.5× wider than the
-flattened one.
+Permutations are nested within questions, so the P×N cells are **not**
+independent — treating them as such inflates n by 5× and manufactures
+significance. The resampling unit is the question, and all P of its permutations
+travel with it. The test suite contains a regression guard that builds data with
+strong between-question and weak within-question variation and asserts the correct
+CI is >1.5× wider than the flattened one.
 
 Paired comparisons throughout. Holm correction across one family of nine
 confirmatory comparisons. CIs, not p-values, as the primary presentation.
 
 The analysis was **pre-registered before any main-run data existed** — hypotheses,
 thresholds, primary endpoint, analysis population and multiplicity family all
-fixed and committed in advance. The registration is retrievable from git history
-at commit `2f24548`.
+fixed and committed in advance. Retrievable from git history at commit `2f24548`.
 
 ## Setup
 
@@ -128,12 +152,10 @@ Every generation is content-hash cached on `sha256(model, prompt, decode_params)
 and flushed per block, so reruns are free and interrupting a run loses nothing.
 
 Useful flags: `--backend dummy` exercises the whole pipeline with no GPU (its
-numbers are meaningless by construction), `--n 20` shrinks the query set,
+numbers are meaningless by construction), `--n 20` shrinks the question set,
 `--arms full` restricts the grid, `--budget` pins a keep-k.
 
 ## Status
-
-Weeks 1–2 complete; analysis plan registered.
 
 | Piece | State |
 |---|---|
@@ -141,9 +163,9 @@ Weeks 1–2 complete; analysis plan registered.
 | `generate.py` — local 4-bit generator, greedy, answer log-probs | done |
 | arms `full` / `nocontext` / `random_drop` / `placebo_pos` (3 variants) | done |
 | arms `rerank_topk` / `provence_rerank` / `provence_full` / `llm_pruner` / `llmlingua2` | done |
-| arm `loo_oracle` | week 3 |
-| 2WikiMultihopQA + hosted cross-generator replication | week 5 |
-| figures | week 6 |
+| arm `loo_oracle` | to come |
+| 2WikiMultihopQA + hosted cross-generator replication | to come |
+| figures | to come |
 
 **129 tests** pass (`python -m pytest -q`, ~9s). One is marked `network` and
 downloads HotpotQA on first run; `pytest -m "not network"` skips it.
@@ -154,6 +176,6 @@ Off-the-shelf pruner checkpoints are used out of distribution relative to their
 training data, so this measures deployed-as-published behaviour, not each method's
 ceiling. The Provence checkpoint is `cc-by-nc-nd-4.0` — non-commercial. `rank` is
 the dataset's **as-given** order, not a retriever ranking; HotpotQA distractor has
-no retriever. `llmlingua2` presents n permutable slots where a keep-k arm presents
-k, so its raw permutation variance is not comparable in magnitude and it is
-compared on input-token count instead.
+no retriever, and the term is reserved for the NQ-open arm. `llmlingua2` presents
+n permutable slots where a keep-k arm presents k, so its raw permutation variance
+is not comparable in magnitude and it is compared on input-token count instead.
