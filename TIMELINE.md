@@ -1,7 +1,7 @@
 # Timeline
 
-What has been done, and what is left. Status as of **2026-08-29**, commit
-`98cba17`, branch `master`.
+What has been done, and what is left. Status as of **2026-08-29**, branch
+`master`.
 
 This file is chronological and deliberately thin on rationale. For the *why* of
 any decision, read the other three:
@@ -16,12 +16,16 @@ any decision, read the other three:
 
 ## Status in one line
 
-**Week 1 of 6 is complete except the single number it exists to produce.** The
-week-1 gate needs a GPU pass that has never been run. Nothing downstream should
-be built until it prints PASS.
+**Week 1 is complete. The gate PASSED at 0.0263 (threshold 0.02).** The premise
+holds at this scale: answer quality does vary across permutations of a fixed
+context. Week 2 is cleared to start.
+
+Read the caveat in the gate entry below before quoting that number — the median
+is a knife-edge statistic on this distribution, and the real result is stronger
+and stranger than 0.0263 suggests.
 
 ```
-week 1  ####################.  build done, gate not run
+week 1  #####################  DONE, gate PASSED 0.0263
 week 2  ....................  4 pruner arms, register the analysis plan
 week 3  ....................  LOO oracle, memorization filter, lit re-check
 week 4  ....................  main run n=300, bootstrap
@@ -65,8 +69,9 @@ Measurements made along the way, none of them the gate:
   excluded as a comparability exclusion. Working population **7,345**
 - Prompt template chosen on a 12-query x 5-permutation probe, on **accuracy and
   answer-format match**, explicitly not on permutation SD
-- The LOO oracle has real signal: logP(answer) drops 12.4 nats when the gold
-  paragraphs are removed (one example)
+- The LOO oracle has signal, though **less than first recorded**: a 12.4-nat drop
+  was written down here, but it does not reproduce. The committed code gives
+  1.79 nats on the same example — see `HANDOFF.md` Sec. 5
 - A 12-query probe showed median within-query SD of 0.067. **Twelve queries is
   not one hundred — this is not the gate.**
 
@@ -101,29 +106,58 @@ Protocol change, free now and not later: **random permutations are seeded per
 query**. They were seeded on `(seed, replicate, n)` alone, so every query saw the
 identical trio of random orderings. Recorded in `ANALYSIS_PLAN.md` Sec. 4.
 
+### 2026-08-29 — VRAM cap (`8bd02a9`)
+
+Batch 4 ran but starved the laptop compositor and cut the monitor out. Added
+`max_vram_fraction` (0.65) so an overrun raises a clean CUDA OOM instead, and
+dropped `batch_size` to 2. The stopped pilot lost nothing: 224 of 500
+generations were already banked and replayed.
+
+### 2026-08-29 — **Week-1 gate: PASS**
+
+```
+median within-query SD   0.0263   >=  0.02   PASS
+mean within-query SD     0.1778
+mean f1                  0.4867     (100 queries x 5 permutations, `full` arm)
+between-query SD         0.3815
+```
+
+Artifacts in `results/pilot_w1/`: `gate_report.txt`, `per_query_summary.csv`,
+`gate_stats.json`. Raw generations stay gitignored per plan Sec. 6 and are
+reproducible from the cache.
+
+**Read this before quoting 0.0263.** The distribution is bimodal, and the median
+lands on the seam:
+
+- **Exactly 50 of 100 queries have SD = 0.** They never move, whatever the
+  ordering.
+- **The other 50 move enormously** — median SD among movers **0.4177**, max
+  **0.5477**.
+- So the median is the midpoint of the largest zero and the smallest mover:
+  `(0.0000 + 0.0526) / 2 = 0.0263`. It is literally half the smallest non-zero
+  SD. **With 51 static queries instead of 50 the gate would have printed FAIL**
+  while the moving half looked exactly the same.
+
+The pre-registered criterion passed on its own terms and that stands. But the
+honest reading of RQ1 is not "SD is 0.026, just over the line" — it is "half the
+queries are perfectly stable and half swing by ~0.42 F1 on identical content
+under greedy decoding". That is a stronger result than the headline, and it is
+the instance-level variance hiding behind stable averages that "Lost in the
+Evidence?" (arXiv 2605.27105) describes.
+
+Of the 50 static queries: 22 always right, 20 always wrong, 8 stuck in between.
+Movement does not depend on hop type — bridge and comparison both move at
+exactly 50%.
+
 ---
 
 ## Remaining
 
-### Week 1 — the gate. Blocking everything below.
+### Week 1 — DONE
 
-```bash
-python -m src.smoke                                   # ~1 min, 6 sections
-python -m src.run  --config configs/pilot.yaml        # 500 generations, 5-15 min
-python -m src.gate results/pilot_w1/generations.csv   # prints PASS or FAIL
-```
-
-- [ ] Run the smoke test — it now also checks batch-composition determinism
-- [ ] Run the pilot (100 queries, `full` arm, 5 permutations)
-- [ ] Run the gate and **commit the result either way**
-
-PASS is the green light for week 2. FAIL is a real finding, with the threshold
-already on record, and sends you to the Sec. 9 ladder: more chunks, then longer
-chunks, then a weaker generator, then MuSiQue — and then the consolidation
-fallback, which reuses roughly 80% of this code.
-
-Note: permutations are now seeded per query, so the pilot's median SD is not
-directly comparable to the 0.067 from the 12-query probe.
+- [x] Smoke test — all six sections pass
+- [x] Pilot — 100 queries x 5 permutations, 500 rows
+- [x] Gate — **PASS at 0.0263**, committed
 
 ### Week 2 — the remaining arms, and registration
 

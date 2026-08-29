@@ -1,0 +1,13 @@
+{
+  "n_queries": 100.0,
+  "n_permutations": 5.0,
+  "mean_score": 0.486713,
+  "median_within_query_sd": 0.026307,
+  "mean_within_query_sd": 0.17776,
+  "q25_sd": 0.0,
+  "q75_sd": 0.403786,
+  "frac_queries_zero_sd": 0.5,
+  "frac_queries_flipping": 0.5,
+  "median_range": 0.058824,
+  "between_query_sd": 0.381466
+}

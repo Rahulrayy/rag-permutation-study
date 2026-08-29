@@ -12,12 +12,29 @@ known, and what to do next.
 
 ## 1. Where the project actually is
 
-**Week 1 of 6 is complete except for the one number it exists to produce.**
+**Week 1 of 6 is complete. The gate PASSED.**
 
 The plan's week-1 gate (Sec. 7) asks a single question: *does answer quality vary
-across permutations of a fixed context, at this scale, with this model?* All the
-machinery to answer it is built, tested and committed. The GPU pass that produces
-the number has not been run.
+across permutations of a fixed context, at this scale, with this model?* It does.
+
+```
+median within-query SD   0.0263   >=  0.02   PASS
+mean within-query SD     0.1778
+mean f1                  0.4867    (100 queries x 5 permutations, `full` arm)
+```
+
+**The median is a knife-edge statistic on this distribution and should not be
+quoted alone.** Exactly 50 of 100 queries have SD = 0; the other 50 have a median
+SD of **0.4177** and a max of **0.5477**. The median therefore sits on the seam
+between the two halves and works out to half the smallest non-zero SD
+(`(0 + 0.0526) / 2`). One more static query and it would have read 0.0000 and
+printed FAIL, with the moving half unchanged.
+
+The pre-registered criterion passed on its own terms, and that stands — it was
+fixed before any data was collected and it was not touched afterwards. But the
+finding to carry into the write-up is the bimodality, not the 0.0263: half these
+queries are perfectly stable under reordering and half swing by ~0.42 F1 on
+identical content under greedy decoding. Artifacts in `results/pilot_w1/`.
 
 ```bash
 python -m src.run  --config configs/pilot.yaml       # 500 generations, ~5-15 min
@@ -280,14 +297,13 @@ README has the mapping.
 
 ## 7. Next steps, in order
 
-**1. Run the gate.** `python -m src.smoke` is **done and passing**. What remains is
-the pilot and the gate itself, the two commands in §1. Commit the result either
-way: a PASS is the green light for week 2; a FAIL is a real finding, with the
-threshold already on record, and sends you to the Sec. 9 ladder.
+**1. ~~Run the gate.~~ Done, 2026-08-29: PASS at 0.0263.** Smoke, pilot and gate
+all run; aggregates committed under `results/pilot_w1/`. Week 2 is cleared.
 
-Note when comparing against the 0.067 from the 12-query probe: **permutations are
-now seeded per query** (§4), so the pilot's random orderings are not the trio
-that probe used. The numbers are not directly comparable.
+Carry forward into the RQ1 write-up: report the **distribution**, not the median
+alone — see §1. The escalation ladder is not needed, but note that a study
+finding "half the queries never move" has a different shape of claim than one
+finding "everything moves a little", and the two call for different figures.
 
 **2. Before week 3, re-check the literature.** The plan (Sec. 2) commits to a
 targeted search on *"permutation-controlled evaluation context pruning"* and

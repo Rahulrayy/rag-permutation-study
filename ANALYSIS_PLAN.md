@@ -14,6 +14,9 @@ never silently into the confirmatory sections.
 - **H1 (RQ1).** Median within-query SD of token-F1 across P=5 permutations at
   fixed content and fixed budget is > 0.02. *Directional. This is also the
   week-1 kill criterion (plan Sec. 9).*
+  **Settled in the week-1 pilot, 2026-08-29: 0.0263, PASS** (n=100, `full`
+  arm, k=10). See the caveat in Sec. 9 — the median is fragile on this
+  distribution and RQ1's primary presentation should not rest on it.
 - **H2 (RQ2).** OAE of published pruners against `rerank_topk` is < TODO
   orderings-worth of noise.
 - **H3 (RQ3).** Rank Flip Rate across single orderings is > TODO.
@@ -138,4 +141,20 @@ protocol deviation and goes in Sec. 9.
 
 *(Append-only. Date each entry.)*
 
-- None yet.
+- **2026-08-29 — pilot finding, not a deviation.** The week-1 gate passed at a
+  median within-query SD of 0.0263 against a threshold of 0.02. The criterion was
+  fixed before any data was collected and was not altered after seeing the
+  result. However, the distribution is bimodal: exactly 50 of 100 queries have
+  SD = 0 and the other 50 have a median SD of 0.4177 (max 0.5477). The median
+  therefore falls on the seam between the two groups and equals half the smallest
+  non-zero SD; a single additional static query would have produced 0.0000 and a
+  FAIL, with the moving half unchanged.
+
+  **Implication for the main run, to be decided before it starts, not after:**
+  RQ1's primary presentation should be distributional — the fraction of queries
+  with non-zero SD, and the SD distribution among those that move — rather than a
+  median that is unstable under a one-query change. Choosing that presentation
+  *now*, from pilot data, and fixing it before the n=300 run is the point of
+  registering; changing it after seeing main-run results would not be. The
+  pre-registered median is still reported, unchanged, alongside whatever
+  distributional summary is registered.
