@@ -8,6 +8,7 @@ Pre-registered analysis: [`ANALYSIS_PLAN.md`](ANALYSIS_PLAN.md) — **must be fi
 committed before the main run.**
 Picking this up cold, or after a break: [`HANDOFF.md`](HANDOFF.md) — current state,
 locked decisions, design invariants, and what to do next.
+What is done and what is left, week by week: [`TIMELINE.md`](TIMELINE.md).
 
 ## What this is
 
