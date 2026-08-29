@@ -14,6 +14,9 @@ from .base import Pruner
 
 class Full(Pruner):
     name = "full"
+    # Ignores the budget by construction, so it is not keep-k matched and must
+    # not be pooled with the selection arms in a matched comparison.
+    budget_is_keep_count = False
 
     def select(self, query: str, chunks: Sequence[Chunk], budget: int) -> list[int]:
         # Budget is ignored by construction; `full` is the no-pruning reference.

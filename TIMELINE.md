@@ -26,7 +26,7 @@ and stranger than 0.0263 suggests.
 
 ```
 week 1  #####################  DONE, gate PASSED 0.0263
-week 2  ###############.....  3 arms done; llmlingua2 + registration left
+week 2  ##################..  all 4 arms done; registration left
 week 3  ....................  LOO oracle, memorization filter, lit re-check
 week 4  ....................  main run n=300, bootstrap
 week 5  ....................  2WikiMultihopQA + Groq replication
@@ -176,7 +176,9 @@ Ordered by risk, not convenience:
       0.048 = chance); **the selection changed in 19/20 queries**. Over- and
       under-selection are repaired deterministically and counted, not swallowed:
       it failed to name k passages in 10% of cells
-- [ ] `llmlingua2` last — it has an unresolved design question (below)
+- [x] `llmlingua2` — the design question is settled and recorded: compress per
+      chunk (**joint compression made content order-dependent in 100/100 chunks**),
+      spend the budget as a rate not a keep-count, permute chunk-level units
 - [ ] Fill the `ANALYSIS_PLAN.md` TODOs: primary endpoint, `nocontext`
       correctness definition, Holm family definition, H2/H3 thresholds,
       remaining exclusions, and confirm the placebo comparator

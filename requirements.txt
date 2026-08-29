@@ -39,8 +39,9 @@ groq>=0.11
 matplotlib>=3.8
 jupyter>=1.0
 
-# Not yet installed, needed for the llmlingua2 arm (week 2):
-# llmlingua
+# llmlingua2 arm. Verified to add no new constraint on torch/transformers --
+# every dependency was already satisfied, so the cu128 build is untouched.
+llmlingua>=0.2
 
 # Tests
 pytest>=8.0

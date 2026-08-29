@@ -49,7 +49,18 @@ class Pruner(ABC):
         permutation protocol overwrites it.
         """
 
-    def rewrite(self, query: str, chunks: Sequence[Chunk]) -> list[Chunk]:
+    #: Does ``budget`` mean "keep exactly this many chunks"? True for every
+    #: selection method, and what makes the matched-keep-count comparison
+    #: against `placebo_pos` possible. False for `full` (no pruning by
+    #: construction) and for rate-based compressors like `llmlingua2`, which
+    #: have no chunk ranking and spend the budget as a compression *rate*
+    #: instead. Those arms are compared on input-token count, not on k
+    #: (plan Sec. 4.3). Analysis code must not pool the two kinds.
+    budget_is_keep_count: bool = True
+
+    def rewrite(
+        self, query: str, chunks: Sequence[Chunk], budget: int
+    ) -> list[Chunk]:
         """Optionally rewrite the *content* of the kept chunks. Identity by default.
 
         Selection, rewriting and ordering are three separate steps, and keeping

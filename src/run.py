@@ -192,7 +192,7 @@ def run(cfg: Config) -> Path:
             # Third step, separate from selection and ordering: compression
             # methods rewrite chunk *content* (Provence prunes sentences).
             # Identity for every other arm. See prune.base.Pruner.rewrite.
-            kept_chunks = pruner.rewrite(ex.question, kept_chunks)
+            kept_chunks = pruner.rewrite(ex.question, kept_chunks, budget)
 
             orderings = permutation_set(
                 kept_chunks,

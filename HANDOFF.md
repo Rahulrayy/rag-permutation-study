@@ -81,8 +81,8 @@ with the week they are due — they never return fake data.
 | `src/prune/full,nocontext,random_drop,placebo_pos` | **done** | Includes the study's novel control |
 | `src/prune/rerank_topk` | **done** | Default OAE baseline arm. Plain transformers, no sentence-transformers |
 | `src/prune/provence` | **done** | Two arms: `provence_rerank`, `provence_full`. Checkpoint verified |
-| `src/prune/llmlingua2` | stub | Week 2. Has an unresolved design question, see §7 |
-| `src/prune/llm_pruner` | stub | Week 2 |
+| `src/prune/llmlingua2` | **done** | Rate-based, not keep-k. Compressed per chunk, never jointly |
+| `src/prune/llm_pruner` | **done** | Selection is order-dependent; see §5 |
 | `src/prune/loo_oracle` | stub | Week 3. Depends on `Generator.score`, which is verified working |
 | `src/data.py::_load_2wikimultihop` | stub | Week 5 |
 
@@ -134,9 +134,15 @@ folded rewriting into selection would make the two inseparable after the fact,
 exactly as one that folded in ordering would. `validate_rewrite` enforces that a
 rewrite changes text and nothing else.
 
-**Every arm honours its budget exactly.** `validate_selection` enforces it. A
-pruner quietly returning k+1 chunks breaks the matched-keep-count comparison
-against `placebo_pos`, which is the study's centerpiece.
+**Every arm honours its budget exactly, and the two that cannot say so.**
+`validate_selection` enforces it: a pruner quietly returning k+1 chunks breaks
+the matched-keep-count comparison against `placebo_pos`, which is the study's
+centerpiece. Two arms genuinely do not have a keep-count — `full` (no pruning by
+construction) and `llmlingua2` (rate-based, no chunk ranking to take a top-k
+from). Both declare `budget_is_keep_count = False`. **Analysis code must not pool
+the two kinds in a matched comparison**; those arms are compared on input-token
+count instead (plan Sec. 4.3). The flag exists so that is checkable rather than
+remembered.
 
 **One arm, one budget, when measuring across permutations.** Grouping generations
 by `(arm, query)` alone pools every keep-k cell for that arm, so on a main-run CSV
@@ -436,13 +442,30 @@ fixed**, which is the decomposition this literature does not report. Verified on
 removing a further 70% of the text. Expect it to score badly — a method that
 deletes the answer in 10% of queries should. That is the finding.
 
-**How is a token-compressed context permuted?** `llmlingua2` compresses *within*
-chunks rather than selecting whole ones. Two consequences: a keep-k budget is not
-comparable across arms (plan Sec. 4.3 handles this — report against input-token
-count, not k), and it is genuinely unclear what a permutation *means* for a
-token-compressed context. The honest default is to permute the surviving
-chunk-level units rather than individual tokens, but this needs deciding
-explicitly and recording before the arm runs, not after.
+**How is a token-compressed context permuted? Decided 2026-08-29, before the arm
+ran.** Permute the surviving **chunk-level units**, never individual tokens.
+Two further decisions came out of building it:
+
+*Compress per chunk, never jointly.* LLMLingua-2 is normally applied to a whole
+concatenated context, and doing that here would make the compression a function
+of chunk order — so each of the P=5 permutations would receive different
+content, breaking the one invariant the design rests on, in the very arm meant
+to test ordering. Measured over 10 queries / 100 chunks / 3 orderings, asking
+whether a chunk's surviving text is identical across orderings: **joint 0/100
+(0%), per-chunk 100/100 (100%)**. Not one chunk survived joint compression the
+same way twice. That LLMLingua-2 is order-sensitive at all is itself worth
+reporting: it is a deterministic token classifier, so this is more surprising
+than `llm_pruner`'s order-dependence, not less.
+
+*The budget is a rate, not a keep-count.* There is no chunk ranking, and
+inventing one would be proposing a method (plan Sec. 9 forbids it). Budget k
+becomes a per-chunk rate of k/n. Verified: total input characters came to
+0.86x / 0.94x / 1.12x of `rerank_topk` at k=2/3/5, so the budgets really are
+matched on tokens.
+
+*Stated limitation:* this arm presents n permutable slots where a keep-k arm
+presents k. More slots means more positional room, so its raw permutation
+variance is not comparable in magnitude to `rerank_topk` at k=3.
 
 **Is memorization going to bite?** The 12-query probe showed mean EM of 0.517,
 which is high for a 3B model on multi-hop questions. That is consistent with

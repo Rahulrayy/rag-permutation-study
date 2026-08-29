@@ -73,6 +73,10 @@ arm_params:
     seed: 20260828
   llm_pruner:
     max_new_tokens: 64
+  llmlingua2:
+    # bert-base rather than xlm-roberta-large: 0.71 GB against 2.2 on a 6 GB
+    # card. A deviation from the paper's headline model; state it in the write-up.
+    model: microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank
 
 permutation:
   n_permutations: 5

@@ -164,7 +164,9 @@ class ProvenceFull(_ProvenceBase):
 
     name = "provence_full"
 
-    def rewrite(self, query: str, chunks: Sequence[Chunk]) -> list[Chunk]:
+    def rewrite(
+        self, query: str, chunks: Sequence[Chunk], budget: int
+    ) -> list[Chunk]:
         # `chunks` is the kept subset; the pruned text was computed over the
         # full context during select() and is looked up by idx. Provence scores
         # each passage independently given the question, so a chunk's pruned

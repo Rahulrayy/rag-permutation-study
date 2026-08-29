@@ -10,6 +10,7 @@ from src.prune.base import validate_selection
 IMPLEMENTED = [
     "full", "nocontext", "random_drop", "placebo_pos",
     "provence_rerank", "provence_full", "rerank_topk", "llm_pruner",
+    "llmlingua2",
 ]
 
 
@@ -140,13 +141,13 @@ def test_provence_rerank_leaves_text_untouched(stub_provence, chunks):
     """The reranker arm must stay content-matched against placebo_pos."""
     p = get_pruner("provence_rerank")
     kept = [c for c in chunks if c.idx in p.select("q", chunks, 3)]
-    assert [c.text for c in p.rewrite("q", kept)] == [c.text for c in kept]
+    assert [c.text for c in p.rewrite("q", kept, 3)] == [c.text for c in kept]
 
 
 def test_provence_full_replaces_text_with_pruned(stub_provence, chunks):
     p = get_pruner("provence_full")
     kept = [c for c in chunks if c.idx in p.select("q", chunks, 3)]
-    out = p.rewrite("q", kept)
+    out = p.rewrite("q", kept, 3)
     assert [c.text for c in out] == ["kept7", "", ""]   # 8 and 9 pruned to empty
     assert [c.idx for c in out] == [c.idx for c in kept]
 
@@ -157,7 +158,7 @@ def test_provence_full_keeps_emptied_chunks_in_place(stub_provence, chunks):
     actually returns."""
     p = get_pruner("provence_full")
     kept = [c for c in chunks if c.idx in p.select("q", chunks, 3)]
-    assert len(p.rewrite("q", kept)) == 3
+    assert len(p.rewrite("q", kept, 3)) == 3
 
 
 def test_provence_runs_the_model_once_per_query(stub_provence, chunks):
@@ -185,7 +186,7 @@ def test_rewrite_may_not_change_the_chunk_set(chunks):
 
 
 def test_default_rewrite_is_identity(chunks):
-    assert get_pruner("full").rewrite("q", chunks[:3]) == chunks[:3]
+    assert get_pruner("full").rewrite("q", chunks[:3], 3) == chunks[:3]
 
 
 def test_unknown_arm_raises():
@@ -311,7 +312,7 @@ def test_rerank_does_not_rewrite_content(stub_reranker, chunks):
     """Selection-only: it must stay content-matched against placebo_pos."""
     p = get_pruner("rerank_topk")
     kept = [c for c in chunks if c.idx in p.select("q", chunks, 3)]
-    assert p.rewrite("q", kept) == kept
+    assert p.rewrite("q", kept, 3) == kept
 
 
 # --------------------------------------------------------------------------- #
@@ -423,3 +424,72 @@ def test_selection_stability_detects_order_dependence(chunks):
     p2, _ = _pruner("1,2,3", "3,2,1")
     same = selection_stability(p2, "q", chunks, 3, orders=("rank", "rank"))
     assert same["jaccard"] == 1.0 and same["stable"] is True
+
+
+# --------------------------------------------------------------------------- #
+# llmlingua2. Rate-based, so it breaks the keep-k mould deliberately; the tests
+# pin the decisions that were made before the arm ran.
+# --------------------------------------------------------------------------- #
+
+class _StubCompressor:
+    def __init__(self):
+        self.calls = []
+
+    def compress_prompt(self, text, rate, force_tokens, use_context_level_filter):
+        self.calls.append({"text": text, "rate": rate,
+                           "context_filter": use_context_level_filter})
+        return {"compressed_prompt": text[: max(1, int(len(text) * rate))]}
+
+
+@pytest.fixture
+def stub_lingua(monkeypatch):
+    from src.prune import llmlingua2 as mod
+
+    stub = _StubCompressor()
+    monkeypatch.setattr(mod, "_load", lambda model, device: stub)
+    monkeypatch.setattr(mod, "unload_all", lambda: None)
+    return stub
+
+
+def test_llmlingua2_keeps_every_chunk(stub_lingua, chunks):
+    """It has no chunk ranking; the budget is spent on compression instead."""
+    assert get_pruner("llmlingua2").select("q", chunks, 3) == list(range(10))
+
+
+def test_llmlingua2_is_not_keep_k_matched(stub_lingua):
+    """Analysis code must not pool it with the selection arms."""
+    assert get_pruner("llmlingua2").budget_is_keep_count is False
+    assert get_pruner("full").budget_is_keep_count is False
+    assert get_pruner("rerank_topk").budget_is_keep_count is True
+
+
+def test_llmlingua2_budget_becomes_a_rate(stub_lingua, chunks):
+    p = get_pruner("llmlingua2")
+    assert p.rate_for(3, 10) == pytest.approx(0.3)
+    assert p.rate_for(5, 10) == pytest.approx(0.5)
+    p.rewrite("q", chunks, 3)
+    assert all(c["rate"] == pytest.approx(0.3) for c in stub_lingua.calls)
+
+
+def test_llmlingua2_compresses_each_chunk_independently(stub_lingua, chunks):
+    """Joint compression makes content a function of order -- measured at 0/100
+    chunks surviving identically across orderings. Never enable the
+    cross-context filter here."""
+    get_pruner("llmlingua2").rewrite("q", chunks, 3)
+    assert len(stub_lingua.calls) == 10                      # one call per chunk
+    assert all(c["context_filter"] is False for c in stub_lingua.calls)
+
+
+def test_llmlingua2_rewrite_preserves_the_chunk_set(stub_lingua, chunks):
+    out = get_pruner("llmlingua2").rewrite("q", chunks, 3)
+    assert [c.idx for c in out] == [c.idx for c in chunks]
+    assert all(len(o.text) < len(c.text) for o, c in zip(out, chunks))
+
+
+def test_llmlingua2_caches_per_chunk_and_rate(stub_lingua, chunks):
+    p = get_pruner("llmlingua2")
+    p.rewrite("q", chunks, 3)
+    p.rewrite("other query", chunks, 3)   # same chunks, same rate -> no new work
+    assert len(stub_lingua.calls) == 10
+    p.rewrite("q", chunks, 5)             # new rate -> recompressed
+    assert len(stub_lingua.calls) == 20
