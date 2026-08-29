@@ -64,6 +64,7 @@ def build_generator(cfg: Config) -> CachedGenerator:
             quantization=gen_cfg.get("quantization", "4bit"),
             batch_size=gen_cfg.get("batch_size", 8),
             max_vram_fraction=gen_cfg.get("max_vram_fraction"),
+            batch_pause_s=gen_cfg.get("batch_pause_s", 0.0),
         )
     elif backend_name == "groq":
         backend = GroqGenerator(model=gen_cfg["model"])

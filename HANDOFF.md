@@ -264,24 +264,44 @@ pip install torch --index-url https://download.pytorch.org/whl/cu128
 pip install -r requirements.txt
 ```
 
-**VRAM is the binding constraint, and it does not fail politely.** `batch_size` is
-**2** in both configs, with `max_vram_fraction: 0.65` as a hard ceiling.
+**This machine is display-limited, not OOM-limited.** `batch_size` is **1**,
+`batch_pause_s` **0.25**, `max_vram_fraction` **0.5**, in both configs.
 
-The history matters, because the first version of this note understated the
-limit. Batch 5 reached 5.9 GB of 6.4 GB in the smoke test and 8 will OOM, so
-batch 4 looked safe — and it does run. But **the laptop display is driven by the
-same GPU**, and at batch 4 the pilot starved the compositor badly enough that the
-monitor cut out repeatedly. That is the real ceiling on this machine, and it is
-lower than the OOM ceiling.
+The history matters, because this took three attempts to pin down and the first
+two diagnoses were wrong. Batch 5 reached 5.9 GB of 6.4 GB in the smoke test and
+8 will OOM, so batch 4 looked safe — and it does run. But **the laptop display is
+driven by the same GPU**, and batch 4 blanked the monitor repeatedly. Dropping to
+batch 2 with a 0.65 VRAM cap did not fix it either.
 
-An OOM is the *polite* failure mode. The dangerous one is no error at all: the
-run keeps going and takes the screen with it. `max_vram_fraction` is applied via
-`torch.cuda.set_per_process_memory_fraction` before the weights load, so
-overrunning now raises an ordinary CUDA OOM instead. At 0.65 the cap is ~4.0 GB
-of 6.1 GB, leaving ~2.1 GB for the display.
+**It is not (only) memory. It is TDR.** Windows Timeout Detection and Recovery
+resets the display driver when a GPU kernel blocks the desktop past `TdrDelay`,
+which is at its **2-second default** on this machine (`TdrLevel` unset = 3,
+recover). The monitor blanks and comes back, and **nothing surfaces on the Python
+side** — the run carries on. So a VRAM cap alone cannot fix it: the problem is
+how long a single kernel holds the GPU, not how much it allocates.
 
-If the monitor still drops: `batch_size: 1`, then `max_vram_fraction: 0.5`. Both
-only make the run slower. **Recovery is cheap** — see §9 on the cache.
+Three levers, all of which only cost wall-clock:
+
+| Setting | Value | What it does |
+|---|---|---|
+| `batch_size` | 1 | shorter kernels, so none blocks the display for 2s |
+| `batch_pause_s` | 0.25 | hands the GPU back to the compositor between batches |
+| `max_vram_fraction` | 0.5 | ~3.2 GB cap; an overrun is a clean CUDA OOM |
+
+Roughly 3-4x slower than batch 4. Worth it for a machine you also have to look
+at. **Recovery is cheap either way** — see §9 on the cache.
+
+Also fixed here: `LocalGenerator.score` was materialising logits for every
+position, `(1, 1555, 151936)` = **472 MB in one allocation**, the largest single
+spike in the codebase. It now passes `logits_to_keep`, since only the answer
+positions are ever read. Verified identical to 1e-4 on both the with-gold and
+without-gold prompts.
+
+**If the display still drops**, the remaining options are `batch_pause_s: 0.5`,
+then raising `TdrDelay` to 8-10s in
+`HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers` — that one is a
+system-wide registry change needing admin and a reboot, so it is a decision for
+the machine's owner, not something to do casually.
 
 **Keep the HuggingFace cache out of the project directory.** This repo lives under
 `OneDrive\Desktop\...`. An early default put the HF cache at `./hf_cache`, and 1.5

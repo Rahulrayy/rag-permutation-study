@@ -14,6 +14,7 @@ noise and permutation noise are confounded and the design collapses.
 from __future__ import annotations
 
 import hashlib
+import time
 from dataclasses import dataclass, field
 from typing import Any, Protocol, Sequence
 
@@ -269,6 +270,13 @@ class LocalGenerator:
     # recoverable -- the cache keeps every generation already paid for, so a
     # restart at a smaller batch resumes rather than starts over.
     max_vram_fraction: float | None = None
+    # Seconds to idle between batches, giving the GPU back to the desktop
+    # compositor. On a laptop where the display shares the GPU, Windows resets
+    # the display driver if a kernel blocks it past TdrDelay (2s by default) --
+    # the monitor blanks and recovers, with no error on the Python side. That is
+    # a latency problem, not a memory one, so a VRAM cap alone does not fix it.
+    # Pausing costs wall-clock and nothing else.
+    batch_pause_s: float = 0.0
     _tok: Any = field(default=None, init=False, repr=False)
     _model: Any = field(default=None, init=False, repr=False)
 
@@ -373,6 +381,9 @@ class LocalGenerator:
                 text = tok.decode(row, skip_special_tokens=True).strip()
                 out.append(CachedGeneration(text=text))
 
+            if self.batch_pause_s:
+                time.sleep(self.batch_pause_s)
+
         return out
 
     def score(self, prompt: str, answer: str) -> float:
@@ -408,13 +419,27 @@ class LocalGenerator:
             raise ValueError("answer contributed no tokens; check the tokenizer")
 
         n_prefix = prefix_ids.shape[1]
+        n_answer = answer_ids.shape[1]
         full_ids = torch.cat([prefix_ids, answer_ids], dim=1).to(model.device)
-        with torch.no_grad():
-            logits = model(full_ids).logits
 
-        # logits[t] predicts token t+1, so answer token at position t is scored
-        # by the distribution at t-1.
-        log_probs = torch.log_softmax(logits[0, n_prefix - 1 : -1].float(), dim=-1)
+        # Only the last n_answer+1 positions are ever read, but a plain forward
+        # pass materialises logits for all ~1,450 of them: 1450 x 151,936 vocab
+        # x 2 bytes is ~440 MB in one allocation, the largest single spike in
+        # the codebase. `logits_to_keep` asks the model for just the tail.
+        with torch.no_grad():
+            try:
+                logits = model(full_ids, logits_to_keep=n_answer + 1).logits
+                # Returned positions are the last n_answer+1, i.e. n_prefix-1
+                # through the end; drop the final one, which predicts past the
+                # answer.
+                tail = logits[0, :-1]
+            except TypeError:  # older transformers without the kwarg
+                logits = model(full_ids).logits
+                tail = logits[0, n_prefix - 1 : -1]
+
+        # logits[t] predicts token t+1, so the answer token at position t is
+        # scored by the distribution at t-1.
+        log_probs = torch.log_softmax(tail.float(), dim=-1)
         target_ids = full_ids[0, n_prefix:]
         token_lp = log_probs.gather(-1, target_ids.unsqueeze(-1)).squeeze(-1)
         return float(token_lp.sum().item())
