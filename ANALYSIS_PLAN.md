@@ -237,10 +237,11 @@ protocol deviation and goes in Sec. 9.
   All nine arms in the Holm family are implemented and tested at that commit;
   `loo_oracle` (week 3) is not, and its Oracle Gap is therefore a secondary
   quantity here rather than part of the confirmatory family.
-- **Plan commit:** the commit that adds this section. Recorded in the following
-  commit rather than this one, because a file cannot contain its own hash; the
-  git history shows the plan was complete before the SHA was filled in, and
-  neither commit touches `src/`.
+- **Plan commit:** `2c14be0` "REGISTER the analysis plan, before any main-run
+  generation". Recorded here in the following commit rather than in `2c14be0`
+  itself, because a file cannot contain its own hash. `git show 2c14be0` is the
+  registered text; the only change after it is this line. Neither commit touches
+  `src/`.
 - **Environment lockfile:** `requirements.lock`, regenerated at registration
   (66 packages; torch 2.11.0+cu128, transformers 5.16.1, llmlingua 0.2.2,
   nltk 3.10.3).
