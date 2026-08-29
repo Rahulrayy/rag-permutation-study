@@ -1,1 +1,1 @@
-"""rag-order-audit: permutation-controlled re-evaluation of RAG context pruning."""
+"""rag-permutation-study: permutation-controlled re-evaluation of RAG context pruning."""

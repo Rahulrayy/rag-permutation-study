@@ -29,3 +29,11 @@ analysis/figures/
 # Secrets
 .env
 .pytest_cache/
+
+# Working documents: kept local, not published. README.md is the only tracked
+# markdown. Note these files remain in git history from earlier commits -- see
+# `git log --diff-filter=D --name-only` -- so the pre-registration in
+# ANALYSIS_PLAN.md is still timestamped and retrievable at its registration
+# commit even though it is no longer present at HEAD.
+*.md
+!README.md
