@@ -54,6 +54,30 @@ replication are still to come; see Status.*
 
 ---
 
+## Related work, and what is genuinely new here
+
+Order sensitivity in LLMs is well established — in-context example order moves
+few-shot accuracy by tens of points, multiple-choice option order by up to 75%,
+lost-in-the-middle describes the positional shape of it, and benchmarks such as
+RGB have shuffled retrieved documents and confirmed order matters. Context
+pruning is equally well covered, from Provence and LLMLingua-2 through to
+budget-constrained selection under token limits.
+
+What is missing is the **join**. A literature re-check in August 2026 found no
+work that evaluates pruning methods under multiple permutations with content held
+fixed, none that runs a position-matched placebo, and none that reports how often
+method rankings flip across orderings. Nearest neighbours — conformal
+coverage-controlled filtering (arXiv 2511.17908), answer-survival diagnostics for
+budgeted packing (arXiv 2607.00725) — address adjacent questions and use a single
+fixed ordering throughout.
+
+A note on the LLM-pruner result above: that an LLM's selection is order-sensitive
+is *not* a surprising phenomenon given the in-context-learning literature, and it
+is not claimed as one. The claim is narrower: this known effect reaches into the
+pruner's selection, and no published evaluation of an LLM pruner controls for it.
+The LLMLingua-2 result is less exposed to that objection, since it is a
+deterministic token classifier rather than a prompted model.
+
 ## Why this is a gap
 
 Context pruning is a crowded subfield: a dozen methods claim they can discard
