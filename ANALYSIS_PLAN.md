@@ -1,11 +1,17 @@
 # Pre-registered analysis plan
 
-**Status: TEMPLATE — NOT YET PRE-REGISTERED.**
+**Status: REGISTERED 2026-08-29, before any main-run generation.**
 
-Fill every `TODO` and commit this file *before* the first main run
-(plan Sec. 4.6, Sec. 7 week 2). Record the commit SHA in Sec. 8 below.
-Anything decided after seeing main-run results goes in Sec. 9 as exploratory,
-never silently into the confirmatory sections.
+Every confirmatory choice below — hypotheses and their thresholds, the primary
+endpoint, the analysis population, the multiplicity family — was fixed on this
+date. The main run (`configs/main.yaml`, n=300) had not been executed and no
+data existed for any arm beyond the week-1 pilot, which used the `full` arm
+only. Anything decided after seeing main-run results goes in Sec. 9 as
+exploratory, never silently into the confirmatory sections above.
+
+Decisions informed by the week-1 pilot are marked as such and are legitimate:
+a pilot exists to inform design. What matters is that they were fixed *before*
+the confirmatory data existed, and the git history shows when.
 
 ---
 
@@ -17,29 +23,77 @@ never silently into the confirmatory sections.
   **Settled in the week-1 pilot, 2026-08-29: 0.0263, PASS** (n=100, `full`
   arm, k=10). See the caveat in Sec. 9 — the median is fragile on this
   distribution and RQ1's primary presentation should not rest on it.
-- **H2 (RQ2).** OAE of published pruners against `rerank_topk` is < TODO
+- **H2 (RQ2).** OAE of published pruners against `rerank_topk` is **< 0.5**
   orderings-worth of noise.
-- **H3 (RQ3).** Rank Flip Rate across single orderings is > TODO.
+
+  *Interpretation, fixed in advance.* H2 fails if OAE >= 0.5. The project's
+  argument is supported by any OAE below about 1.0 — one ordering's worth of
+  noise, the point where reordering the same context moves the score as much as
+  changing method does. So a result in **[0.5, 1.0) fails H2 while still
+  supporting the thesis**. If that happens it is to be reported as "H2 not
+  supported", in those words, with the observed value and CI, and must not be
+  re-described as a success. The 1.0 line is recorded here as the interpretive
+  reference only; no test is performed against it, and it is not a fallback
+  threshold.
+- **H3 (RQ3).** Rank Flip Rate across single orderings is **> 0.10** — more
+  than one in ten method-pair comparisons reverses sign depending on which
+  single arbitrary ordering the comparison was made at. Note RFR is computed on
+  per-arm means across queries, which are far more stable than the per-query
+  swings seen in the pilot, so this is a real risk of failing even though the
+  instance-level effect is large.
 - **H4 (RQ4).** Placebo Gap — `Q(m) - Q(placebo_pos)` at matched keep-count —
   does not exclude zero for at least one published pruner. All three placebo
   variants run as separate arms; the confirmatory comparator is
   **`placebo_pos:middle_first`**, the shape a lost-in-the-middle-aware pruner
   produces by accident and so the specific confound RQ4 targets. `edges_first`
-  and `tail_first` are reported as exploratory. TODO: confirm before registering.
+  and `tail_first` are reported as exploratory. **Confirmed at registration.**
 
 ## 2. Primary endpoint
 
-TODO — one metric, one arm pair, one budget. Everything else is secondary.
-Proposed: OAE of `provence_rerank` vs `rerank_topk` at k=3, token-F1, filtered
-set. (Provence runs as two arms: `provence_rerank` is selection-only and so is
-content-matched at equal k; `provence_full` is the published method and is
-reported against input-token count. See `src/prune/provence.py`.)
+**Placebo Gap of `provence_rerank` against `placebo_pos:middle_first`, at k=3,
+token-F1, on the filtered set, reported as a point estimate with a 95%
+percentile CI from the two-level bootstrap.**
+
+    Q(provence_rerank) - Q(placebo_pos:middle_first)
+
+Read as: does a published pruner beat dropping the *same number* of chunks by
+position alone? A CI containing zero means the method is not doing content
+selection at this budget — its apparent gain is positional promotion, which the
+placebo reproduces without reading the passages.
+
+Chosen over OAE because plan Sec. 3 names RQ4 the centerpiece and the
+position-matched placebo the control nobody runs. OAE remains the headline
+*descriptive* quantity (plan Sec. 4.5) and is reported prominently, but it is
+secondary to this.
+
+`provence_rerank` rather than `provence_full` because the primary endpoint must
+be a **matched-keep-count** comparison: `provence_rerank` is selection-only and
+holds content fixed at equal k, which is exactly what makes the placebo
+contrast interpretable. `provence_full` changes chunk content and is compared on
+input-token count instead (plan Sec. 4.3), as a secondary endpoint.
+
+Everything else in this document is secondary or exploratory.
 
 ## 3. Analysis population
 
 - Primary: **filtered** — queries the generator answers incorrectly under
   `nocontext` (memorization control, plan Sec. 4.1).
-- Correctness under `nocontext` defined as: TODO (EM, or token-F1 >= TODO).
+- Correctness under `nocontext` defined as **token-F1 >= 0.8**. The filter's
+  purpose is to remove queries answerable from parametric memory, and a reply of
+  "Vilnius Old Town, Lithuania" against a gold of "Vilnius Old Town" is recall
+  even though exact match scores it wrong. **EM is reported alongside as a
+  sensitivity check.** Measured on the week-1 pilot (n=100) before registering,
+  the choice moves one query:
+
+  | rule | excluded | kept | median within-query SD of the kept set |
+  |---|---|---|---|
+  | EM == 1.0 | 10 | 90 | 0.1209 |
+  | token-F1 >= 0.9 | 10 | 90 | 0.1209 |
+  | token-F1 >= 0.8 | 11 | 89 | 0.1095 |
+  | token-F1 >= 0.5 | 11 | 89 | 0.1095 |
+
+  Nothing rests on the definition; it is registered so the choice is not made
+  after seeing main-run numbers.
 - Unfiltered numbers reported alongside, always, never instead.
 - **Exclusion, already applied in `data._require_fixed_context`:** rows not
   shipping exactly 10 paragraphs. On HotpotQA distractor validation this drops
@@ -48,7 +102,20 @@ reported against input-token count. See `src/prune/provence.py`.)
   a fixed context size is what makes a position, a positional bucket and a
   keep-k budget mean the same thing across queries. Decided before any
   generation was run.
-- Further exclusions: TODO (malformed records, empty gold, context over token budget).
+- **Further exclusions: none.** The candidates were checked against the full
+  working population (7,345 rows) before registering, and none occur:
+
+  | candidate exclusion | rows affected |
+  |---|---|
+  | empty gold answer | 0 |
+  | empty question | 0 |
+  | any empty paragraph | 0 |
+  | not exactly 2 gold paragraphs | 0 |
+  | context over the generator's window | 0 (max ~4,097 tokens vs a 32k window) |
+
+  If any arise in a later dataset (2WikiMultihopQA, NQ-open) the rule is fixed
+  here in advance: drop the row, report the count, and never drop a row on the
+  basis of the answer it produced.
 
 ## 4. Fixed parameters
 
@@ -119,7 +186,28 @@ rank" for the NQ-open arm.
   permutations of each sampled query. 10,000 replicates. Permutations are
   nested within queries and are **not** resampled independently.
 - Paired comparisons throughout (same queries across arms).
-- Holm correction across the method-pair family. Family defined as: TODO.
+- Holm correction across the method-pair family. **The family is the nine
+  confirmatory pairwise comparisons at the primary budget (k=3), on the primary
+  population (filtered), with the primary metric (token-F1):**
+
+  | | comparisons |
+  |---|---|
+  | H2, OAE vs `rerank_topk` | `provence_rerank`, `provence_full`, `llmlingua2`, `llm_pruner` (4) |
+  | H4, Placebo Gap vs `placebo_pos:middle_first` | the four above plus `rerank_topk` (5) |
+
+  One family of nine, not two families of four and five — splitting them would
+  buy power at the cost of a reviewer reasonably calling it family-splitting.
+
+  The primary endpoint is one of the nine. It is reported **both** uncorrected
+  (as the single pre-specified primary comparison) **and** Holm-corrected within
+  the family, and both numbers are reported always, so the choice between them
+  cannot be made after seeing which is more favourable.
+
+  Everything outside that set is exploratory and reported without family-wise
+  correction, labelled as such: the other budgets (k=2, k=5), the other placebo
+  variants, the unfiltered population, EM and supporting-fact F1, per-hop-type
+  breakdowns, and the arms that are not keep-k matched (`full`, `llmlingua2`)
+  wherever a matched comparison is implied.
 - CIs (95%, percentile) are the primary presentation; p-values secondary.
 
 ## 6. Derived quantities
@@ -144,9 +232,21 @@ protocol deviation and goes in Sec. 9.
 
 ## 8. Registration
 
-- Registered commit: TODO
-- Date: TODO
-- Environment lockfile: TODO (`pip freeze > requirements.lock`)
+- **Registered:** 2026-08-29.
+- **Code registered:** `d4ba648` — the state of `src/` this plan applies to.
+  All nine arms in the Holm family are implemented and tested at that commit;
+  `loo_oracle` (week 3) is not, and its Oracle Gap is therefore a secondary
+  quantity here rather than part of the confirmatory family.
+- **Plan commit:** the commit that adds this section. Recorded in the following
+  commit rather than this one, because a file cannot contain its own hash; the
+  git history shows the plan was complete before the SHA was filled in, and
+  neither commit touches `src/`.
+- **Environment lockfile:** `requirements.lock`, regenerated at registration
+  (66 packages; torch 2.11.0+cu128, transformers 5.16.1, llmlingua 0.2.2,
+  nltk 3.10.3).
+- **Data state at registration:** week-1 pilot only — n=100, `full` arm, k=10,
+  5 permutations, plus its `nocontext` companion. Committed under
+  `results/pilot_w1/`. No pruner arm has produced a generation.
 
 ## 9. Protocol deviations and exploratory analyses
 
