@@ -233,15 +233,23 @@ protocol deviation and goes in Sec. 9.
 ## 8. Registration
 
 - **Registered:** 2026-08-29.
-- **Code registered:** `d4ba648` — the state of `src/` this plan applies to.
+- **Code registered:** `822bb24` — the state of `src/` this plan applies to.
   All nine arms in the Holm family are implemented and tested at that commit;
   `loo_oracle` (week 3) is not, and its Oracle Gap is therefore a secondary
   quantity here rather than part of the confirmatory family.
-- **Plan commit:** `2c14be0` "REGISTER the analysis plan, before any main-run
-  generation". Recorded here in the following commit rather than in `2c14be0`
-  itself, because a file cannot contain its own hash. `git show 2c14be0` is the
-  registered text; the only change after it is this line. Neither commit touches
-  `src/`.
+- **Plan commit:** `2f24548` "REGISTER the analysis plan, before any main-run
+  generation". Recorded in a following commit rather than in `2f24548` itself,
+  because a file cannot contain its own hash. `git show 2f24548` is the
+  registered text, and no `src/` file changes in it or after it.
+- **Note on history.** Commit messages were rewritten once, before the
+  repository was first published, to strip tooling trailers. No file content,
+  author, or author date changed. That rewrite changed every SHA, so the two
+  above are the post-rewrite values, and SHAs quoted inside older *commit
+  messages* refer to the pre-rewrite history and will not resolve. Ordering,
+  dates and tree contents — which is what the registration claim actually rests
+  on — are unaffected: `git log --format='%ad %s' --date=iso` shows the plan was
+  registered before any main-run generation existed, and `results/` contains
+  only the week-1 pilot.
 - **Environment lockfile:** `requirements.lock`, regenerated at registration
   (66 packages; torch 2.11.0+cu128, transformers 5.16.1, llmlingua 0.2.2,
   nltk 3.10.3).
