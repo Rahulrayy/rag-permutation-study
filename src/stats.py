@@ -38,12 +38,17 @@ class BootstrapResult:
         return (self.lo > 0) or (self.hi < 0)
 
     def p_two_sided(self) -> float:
-        """Bootstrap p-value. Secondary presentation only -- CIs are primary."""
-        n = len(self.replicates)
-        prop = min(
-            (self.replicates <= 0).sum() / n,
-            (self.replicates >= 0).sum() / n,
-        )
+        """Bootstrap p-value. Secondary presentation only -- CIs are primary.
+
+        Computed on the finite replicates, matching the CI. A nan compares False
+        against both <= 0 and >= 0, so counting it in the denominator would drag
+        the p-value down without it ever having voted.
+        """
+        finite = self.replicates[np.isfinite(self.replicates)]
+        n = len(finite)
+        if n == 0:
+            return 1.0
+        prop = min((finite <= 0).sum() / n, (finite >= 0).sum() / n)
         return min(1.0, 2 * max(prop, 1.0 / n))
 
 
@@ -81,22 +86,34 @@ def two_level_bootstrap(
     structure across arms is preserved automatically: a resampled query brings
     its rows in *every* arm.
     """
+    if not scores:
+        raise ValueError("no arms in scores")
+
     # Paired throughout: only queries observed in all arms are resampled.
     shared = sorted(set.intersection(*(set(scores[a]) for a in scores)))
     if not shared:
         raise ValueError("no queries shared across all arms")
 
+    # The point estimate is computed on the same restricted population as the
+    # replicates. Taking it from the unrestricted `scores` instead lets the two
+    # be drawn from different query sets, and the point can then land outside
+    # its own confidence interval -- which reads as a bug in the statistic
+    # rather than in the plumbing.
+    paired: PerArmScores = {
+        arm: {q: scores[arm][q] for q in shared} for arm in scores
+    }
+
     rng = np.random.default_rng(seed)
     reps = np.empty(n_replicates, dtype=float)
     for r in range(n_replicates):
-        reps[r] = statistic(_resample(scores, shared, rng))
+        reps[r] = statistic(_resample(paired, shared, rng))
 
     alpha = (1.0 - ci) / 2.0
     finite = reps[np.isfinite(reps)]
     if finite.size == 0:
         raise ValueError("all bootstrap replicates were non-finite")
     return BootstrapResult(
-        point=float(statistic(scores)),
+        point=float(statistic(paired)),
         lo=float(np.quantile(finite, alpha)),
         hi=float(np.quantile(finite, 1.0 - alpha)),
         ci=ci,

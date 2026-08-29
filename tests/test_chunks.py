@@ -69,3 +69,31 @@ def test_positional_buckets():
     assert [positional_bucket(i, 5) for i in range(5)] == [
         "begin", "middle", "middle", "middle", "end"
     ]
+
+
+def test_random_permutations_vary_across_queries(chunks):
+    """Without a per-query key the three random draws are one shared trio reused
+    for the whole dataset: a sample of size three from n!, whose sampling error
+    never averages out over queries."""
+    a = permutation_set(chunks, STRATEGIES, seed=20260828, key="q1")
+    b = permutation_set(chunks, STRATEGIES, seed=20260828, key="q2")
+    assert [[c.idx for c in p] for p in a[2:]] != [[c.idx for c in p] for p in b[2:]]
+
+
+def test_fixed_orderings_do_not_vary_across_queries(chunks):
+    """rank and reverse are single fixed ordering *rules* -- which is exactly
+    what they are meant to represent -- so the key must not move them."""
+    a = permutation_set(chunks, STRATEGIES, seed=1, key="q1")
+    b = permutation_set(chunks, STRATEGIES, seed=1, key="q2")
+    assert [[c.idx for c in p] for p in a[:2]] == [[c.idx for c in p] for p in b[:2]]
+
+
+def test_permutation_is_reproducible_for_one_query(chunks):
+    a = permutation_set(chunks, STRATEGIES, seed=20260828, key="q1")
+    b = permutation_set(chunks, STRATEGIES, seed=20260828, key="q1")
+    assert [[c.idx for c in p] for p in a] == [[c.idx for c in p] for p in b]
+
+
+def test_positional_bucket_rejects_out_of_range():
+    with pytest.raises(ValueError, match="out of range"):
+        positional_bucket(5, 5)

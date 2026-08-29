@@ -50,7 +50,10 @@ python -m src.gate results/pilot_w1/generations.csv
 ```
 
 The gate prints the median within-query SD of token-F1 across permutations and
-compares it to the pre-registered kill threshold of 0.02. On FAIL it prints the
+compares it to the pre-registered kill threshold of 0.02. It measures one arm at
+one budget: if the CSV holds more than one keep-k for that arm it refuses to run
+until you pass `--budget`, because pooling budgets would treat different keep-k
+cells as permutations of one another. On FAIL it prints the
 escalation ladder from plan Sec. 9 (more chunks → longer chunks → weaker
 generator → MuSiQue) before you fall back to the consolidation study.
 
@@ -67,10 +70,11 @@ generator → MuSiQue) before you fall back to the consolidation study.
 | `stats.py` — two-level bootstrap, Holm | done |
 | `gate.py` — week-1 kill criterion | done |
 | `generate.py` — `LocalGenerator` (4-bit, greedy, answer log-probs) | written, needs a GPU run |
-| arms `full` / `nocontext` / `random_drop` / `placebo_pos` | done |
+| arms `full` / `nocontext` / `random_drop` / `placebo_pos` (3 variants) | done |
 | arms `rerank_topk` / `provence` / `llmlingua2` / `llm_pruner` / `loo_oracle` | week 2–3 |
 
-77 tests pass (`python -m pytest -q`). The suite includes a regression guard for
+100 tests pass (`python -m pytest -q`; one downloads HotpotQA and is marked
+`network`). The suite includes a regression guard for
 the 5x-n inflation that flattening the permutation nesting would cause — the
 single easiest way to manufacture a fake result in this design.
 

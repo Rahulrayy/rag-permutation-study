@@ -34,7 +34,7 @@ from .generate import (
     build_prompt,
 )
 from .metrics import exact_match, token_f1
-from .prune import get_pruner
+from .prune import expand_arms, get_pruner, parse_arm
 
 TEMPLATES = {"default": DEFAULT_TEMPLATE, "alt": ALT_TEMPLATE}
 
@@ -71,7 +71,14 @@ def build_generator(cfg: Config) -> CachedGenerator:
     else:
         raise ValueError(f"unknown generator backend: {backend_name!r}")
 
-    return CachedGenerator(backend=backend, cache=GenerationCache(cfg["cache"]["path"]))
+    return CachedGenerator(
+        backend=backend,
+        cache=GenerationCache(cfg["cache"]["path"]),
+        # Flush a batch at a time so an interrupted overnight run keeps
+        # everything it has already paid for, and prints as it goes.
+        flush_every=max(1, gen_cfg.get("batch_size", 8)) * 8,
+        progress=True,
+    )
 
 
 def decode_params(cfg: Config) -> DecodeParams:
@@ -109,7 +116,13 @@ def run(cfg: Config) -> Path:
     params = decode_params(cfg)
     perm_cfg = cfg["permutation"]
     arm_params = cfg.get("arm_params", {}) or {}
-    template = TEMPLATES[cfg.get("prompt_template", "default")]
+    template_name = cfg.get("prompt_template", "default")
+    if template_name not in TEMPLATES:
+        raise ValueError(
+            f"unknown prompt_template {template_name!r}; "
+            f"expected one of {sorted(TEMPLATES)}"
+        )
+    template = TEMPLATES[template_name]
     started = time.time()
 
     # The nocontext arm runs first: it defines the filtered analysis population
@@ -135,7 +148,11 @@ def run(cfg: Config) -> Path:
         examples = memorization_filter(examples, nocontext_preds)
         print(f"memorization filter: {before} -> {len(examples)} queries")
 
-    arms = [a for a in cfg["arms"] if a != "nocontext"]
+    # `placebo_pos` in a config means all three positional strategies, each as
+    # its own arm (`placebo_pos:middle_first`, ...). They test three different
+    # hypotheses about where this generator's position bias lives and are
+    # reported separately; averaging them would answer none of the three.
+    arms = expand_arms([a for a in cfg["arms"] if a != "nocontext"])
     cells = list(iter_cells(examples, arms, cfg["budgets"]))
     print(f"{len(cells)} cells x {len(perm_cfg['strategies'])} permutations")
 
@@ -144,8 +161,17 @@ def run(cfg: Config) -> Path:
     pending_prompts: list[str] = []
     pending_meta: list[tuple[Any, str, int, int, str, list[int], list[int]]] = []
 
+    # Construct each arm once: pruners can hold a loaded model (rerank_topk,
+    # provence), and rebuilding one per (query, budget) cell would reload it
+    # thousands of times. arm_params are keyed by base name, so all three
+    # placebo variants share one entry.
+    pruners = {
+        arm: get_pruner(arm, **(arm_params.get(parse_arm(arm)[0], {}) or {}))
+        for arm in arms
+    }
+
     for ex, arm, budget in cells:
-        pruner = get_pruner(arm, **arm_params.get(arm, {}))
+        pruner = pruners[arm]
         selected = pruner.select(ex.question, ex.chunks, budget)
         kept_chunks = keep(ex.chunks, selected)
 
@@ -153,6 +179,9 @@ def run(cfg: Config) -> Path:
             kept_chunks,
             perm_cfg["strategies"],
             seed=perm_cfg.get("seed", 20260828),
+            # Per-query, so the three random draws are not one shared trio
+            # reused for the whole dataset. See chunks.permute.
+            key=ex.qid,
         )
         for perm_idx, ordering in enumerate(orderings):
             pending_prompts.append(build_prompt(ex.question, ordering, template))
@@ -177,6 +206,12 @@ def run(cfg: Config) -> Path:
         f"cache: {generator.hits} hits, {generator.misses} misses "
         f"| {elapsed:.1f}s ({elapsed / max(1, generator.misses):.2f}s per new generation)"
     )
+
+    if not rows:
+        raise ValueError(
+            "no rows produced: check that cfg['arms'] and cfg['budgets'] are "
+            "non-empty and that the dataset subsample is not empty"
+        )
 
     out_dir = Path(cfg["output"]["results_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -233,14 +268,14 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = Config.load(args.config)
-    if args.arms:
+    if args.arms is not None:
         cfg.raw["arms"] = args.arms
     if args.backend:
         cfg.raw["generator"]["backend"] = args.backend
         if args.backend == "dummy":
             cfg.raw["cache"]["path"] = "cache/dummy.sqlite"
             cfg.raw["output"]["results_dir"] += "_dummy"
-    if args.n:
+    if args.n is not None:
         cfg.raw["data"]["n_queries"] = args.n
     if args.figures_only:
         raise NotImplementedError("figure generation not implemented (week 6)")

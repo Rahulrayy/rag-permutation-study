@@ -35,11 +35,14 @@ def by_query(
     rows: Sequence[dict[str, str]],
     metric: str = "f1",
     arm: str | None = None,
+    budget: int | str | None = None,
 ) -> dict[str, list[float]]:
-    """Group per-permutation scores by query, for one arm."""
+    """Group per-permutation scores by query, for one arm at one budget."""
     out: dict[str, list[float]] = defaultdict(list)
     for row in rows:
         if arm is not None and row["arm"] != arm:
+            continue
+        if budget is not None and str(row.get("budget")) != str(budget):
             continue
         out[row["qid"]].append(float(row[metric]))
     return dict(out)
@@ -49,10 +52,32 @@ def gate_report(
     rows: Sequence[dict[str, str]],
     arm: str = "full",
     metric: str = "f1",
+    budget: int | str | None = None,
 ) -> dict[str, float]:
-    scores = by_query(rows, metric=metric, arm=arm)
-    if not scores:
+    """Within-query SD across permutations, for one arm at one budget.
+
+    The budget has to be pinned. Grouping by (arm, query) alone pools every
+    keep-k cell for that arm into one list, so on a main-run CSV the `full` arm
+    at budgets 2/3/5 yields fifteen values per query that are *not* fifteen
+    permutations of one context. The pooled SD then mostly measures the budget
+    contrast, passes the ragged-count check because it is uniformly fifteen, and
+    reports a number that looks like the kill criterion but is not.
+    """
+    arm_rows = [r for r in rows if r["arm"] == arm]
+    if not arm_rows:
         raise ValueError(f"no rows for arm {arm!r}")
+
+    budgets = {r["budget"] for r in arm_rows if r.get("budget") not in (None, "")}
+    if budget is None and len(budgets) > 1:
+        raise ValueError(
+            f"rows for arm {arm!r} span budgets {sorted(budgets)}; pass "
+            "budget=... (CLI: --budget) to pick one. Pooling them would treat "
+            "different keep-k cells as permutations of one another."
+        )
+
+    scores = by_query(arm_rows, metric=metric, budget=budget)
+    if not scores:
+        raise ValueError(f"no rows for arm {arm!r} at budget {budget!r}")
 
     n_perms = {len(v) for v in scores.values()}
     if len(n_perms) != 1:
@@ -82,13 +107,21 @@ def gate_report(
     }
 
 
-def format_report(stats: dict[str, float], metric: str, arm: str) -> str:
+def format_report(
+    stats: dict[str, float],
+    metric: str,
+    arm: str,
+    budget: int | str | None = None,
+) -> str:
     median_sd = stats["median_within_query_sd"]
     passed = median_sd >= KILL_THRESHOLD
 
+    header = f"WEEK-1 GATE   arm={arm}  metric={metric}"
+    if budget is not None:
+        header += f"  budget={budget}"
     lines = [
         "=" * 62,
-        f"WEEK-1 GATE   arm={arm}  metric={metric}",
+        header,
         "=" * 62,
         f"  queries                      {int(stats['n_queries'])}",
         f"  permutations per query       {int(stats['n_permutations'])}",
@@ -143,11 +176,15 @@ def main() -> None:
     parser.add_argument("csv", help="generations.csv from a pilot run")
     parser.add_argument("--arm", default="full")
     parser.add_argument("--metric", default="f1", choices=["f1", "em"])
+    parser.add_argument(
+        "--budget",
+        help="keep-k to measure at; required if the CSV holds more than one",
+    )
     args = parser.parse_args()
 
     rows = load_rows(args.csv)
-    stats = gate_report(rows, arm=args.arm, metric=args.metric)
-    print(format_report(stats, args.metric, args.arm))
+    stats = gate_report(rows, arm=args.arm, metric=args.metric, budget=args.budget)
+    print(format_report(stats, args.metric, args.arm, args.budget))
 
 
 if __name__ == "__main__":

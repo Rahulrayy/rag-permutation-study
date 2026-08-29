@@ -4,7 +4,7 @@ matched-keep-count comparison against the placebo is meaningless.
 
 import pytest
 
-from src.prune import get_pruner, registered_arms
+from src.prune import expand_arms, get_pruner, registered_arms
 from src.prune.base import validate_selection
 
 IMPLEMENTED = ["full", "nocontext", "random_drop", "placebo_pos"]
@@ -96,3 +96,35 @@ def test_unimplemented_arms_raise_not_implemented(chunks):
 def test_unknown_arm_raises():
     with pytest.raises(KeyError):
         get_pruner("magic_pruner")
+
+
+def test_bare_arm_expands_to_its_variants():
+    """A config writing `placebo_pos` means all three positional strategies,
+    each as its own arm -- they test three different hypotheses."""
+    assert expand_arms(["full", "placebo_pos"]) == [
+        "full",
+        "placebo_pos:middle_first",
+        "placebo_pos:edges_first",
+        "placebo_pos:tail_first",
+    ]
+
+
+def test_explicit_variant_is_not_re_expanded():
+    assert expand_arms(["placebo_pos:tail_first"]) == ["placebo_pos:tail_first"]
+
+
+def test_variant_suffix_selects_the_strategy(chunks):
+    suffixed = get_pruner("placebo_pos:tail_first").select("q", chunks, 4)
+    kwarg = get_pruner("placebo_pos", strategy="tail_first").select("q", chunks, 4)
+    assert suffixed == kwarg
+
+
+def test_unknown_variant_fails_at_construction(chunks):
+    """A mistyped strategy must fail before the model loads, not hours in."""
+    with pytest.raises(ValueError, match="unknown placebo strategy"):
+        get_pruner("placebo_pos:sideways_first")
+
+
+def test_variant_suffix_rejected_on_arms_without_variants():
+    with pytest.raises(ValueError, match="variant suffix"):
+        get_pruner("full:something")

@@ -94,6 +94,15 @@ def order_adjusted_effect(
     if not shared:
         raise ValueError(f"no shared queries between {method!r} and {baseline!r}")
 
+    thin = [q for q in shared if len(scores[baseline][q]) < 2]
+    if thin:
+        raise ValueError(
+            f"baseline {baseline!r} has < 2 permutations for {len(thin)} queries "
+            f"(e.g. {thin[:3]}); the OAE denominator is a within-query SD and is "
+            "undefined for them. Exclude those queries or use an arm that ran "
+            "the full permutation set."
+        )
+
     deltas = [
         float(np.mean(scores[method][q])) - float(np.mean(scores[baseline][q]))
         for q in shared
@@ -118,15 +127,23 @@ def rank_flip_rate(scores: PerArmScores, arms: Sequence[str] | None = None) -> f
     if len(arms) < 2:
         raise ValueError("need at least two arms to compare")
 
-    n_perms = {len(v) for arm in arms for v in scores[arm].values()}
+    # Paired, like every other comparison in this module. Averaging each arm
+    # over its own query set would let a query missing from one arm move that
+    # arm's mean, and a flip caused by differing populations is not a flip
+    # caused by ordering -- which is the only thing RFR is meant to detect.
+    shared = sorted(set.intersection(*(set(scores[a]) for a in arms)))
+    if not shared:
+        raise ValueError(f"no queries shared across all of {arms}")
+
+    n_perms = {len(scores[arm][q]) for arm in arms for q in shared}
     if len(n_perms) != 1:
         raise ValueError(f"ragged permutation counts across arms/queries: {n_perms}")
     n_perm = n_perms.pop()
 
     def mean_over(arm: str, perm: int | None) -> float:
         vals = [
-            float(np.mean(v)) if perm is None else float(v[perm])
-            for v in scores[arm].values()
+            float(np.mean(scores[arm][q])) if perm is None else float(scores[arm][q][perm])
+            for q in shared
         ]
         return float(np.mean(vals))
 

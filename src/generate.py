@@ -84,9 +84,14 @@ ALT_TEMPLATE = (
 # Enforced, not just asserted in a comment: ALT must be reachable from DEFAULT by
 # substituting the context placeholder alone. Any other drift between the two
 # would confound the delimiter robustness check with a wording change.
-assert ALT_TEMPLATE == DEFAULT_TEMPLATE.replace(
+# A bare `assert` is stripped by `python -O`, which would disable this guard
+# exactly when someone runs a long job with optimisations on.
+if ALT_TEMPLATE != DEFAULT_TEMPLATE.replace(
     "{context}", "<context>\n{context}\n</context>"
-), "ALT_TEMPLATE must differ from DEFAULT_TEMPLATE in the delimiters only"
+):
+    raise AssertionError(
+        "ALT_TEMPLATE must differ from DEFAULT_TEMPLATE in the delimiters only"
+    )
 
 # Matching instructions, no context. Used by the nocontext arm and therefore by
 # the memorization filter, so its answer cue must match the context templates --
@@ -148,6 +153,14 @@ class CachedGenerator:
 
     backend: Generator
     cache: GenerationCache
+    # Generations are written to the cache after every block of this many, not
+    # once at the end. The main grid is ~36,000 generations over ~10 hours; a
+    # single flush at the end means a crash at hour 9 caches nothing and the
+    # whole run restarts from zero, which is the opposite of what the cache is
+    # for. Blocks also give a long run something to print, so an idle-looking
+    # log can be told apart from a hung process.
+    flush_every: int = 64
+    progress: bool = False
     hits: int = field(default=0, init=False)
     misses: int = field(default=0, init=False)
 
@@ -169,21 +182,51 @@ class CachedGenerator:
     def generate_batch(
         self, prompts: Sequence[str], params: DecodeParams
     ) -> list[CachedGeneration]:
-        """Resolve hits from cache, batch only the misses, restore original order."""
+        """Resolve hits from cache, batch only the misses, restore original order.
+
+        The distinct prompt, not the call site, is the unit of work: many grid
+        cells legitimately resolve to the same prompt -- the `full` arm keeps all
+        ten chunks whatever the budget, so main.yaml's three budgets would
+        otherwise pay three times over for one set of generations. Duplicates
+        within a single call are generated once and fanned back out.
+        """
         keys = [cache_key(self.backend.model, p, params.as_key()) for p in prompts]
-        results: list[CachedGeneration | None] = [self.cache.get(k) for k in keys]
 
-        pending = [i for i, r in enumerate(results) if r is None]
-        self.hits += len(prompts) - len(pending)
+        # First occurrence of each distinct key drives the work.
+        first_idx: dict[str, int] = {}
+        for i, k in enumerate(keys):
+            first_idx.setdefault(k, i)
+
+        resolved: dict[str, CachedGeneration] = {}
+        pending: list[int] = []
+        for k, i in first_idx.items():
+            hit = self.cache.get(k)
+            if hit is None:
+                pending.append(i)
+            else:
+                resolved[k] = hit
+
         self.misses += len(pending)
+        self.hits += len(prompts) - len(pending)
 
-        if pending:
-            fresh = self.backend.generate_batch([prompts[i] for i in pending], params)
-            for i, gen in zip(pending, fresh):
+        for start in range(0, len(pending), self.flush_every):
+            block = pending[start : start + self.flush_every]
+            fresh = self.backend.generate_batch([prompts[i] for i in block], params)
+            # A backend returning the wrong count would otherwise be absorbed by
+            # zip() and silently shift every downstream row against its metadata.
+            if len(fresh) != len(block):
+                raise RuntimeError(
+                    f"backend returned {len(fresh)} generations for "
+                    f"{len(block)} prompts; results would be misaligned"
+                )
+            for i, gen in zip(block, fresh):
+                resolved[keys[i]] = gen
                 self.cache.put(keys[i], self.backend.model, gen)
-                results[i] = gen
+            if self.progress:
+                done = min(start + self.flush_every, len(pending))
+                print(f"    generated {done}/{len(pending)} new", flush=True)
 
-        return [r for r in results if r is not None]
+        return [resolved[k] for k in keys]
 
     def score(self, prompt: str, answer: str) -> float:
         key = cache_key(self.backend.model, prompt, {"score_of": answer})
@@ -322,20 +365,36 @@ class LocalGenerator:
         prefix = self._chat(tok, prompt)
 
         prefix_ids = tok(prefix, return_tensors="pt")["input_ids"]
-        full_ids = tok(prefix + answer, return_tensors="pt")["input_ids"]
-        n_prefix = prefix_ids.shape[1]
-        if full_ids.shape[1] <= n_prefix:
+        # Tokenize the answer on its own and concatenate ids, rather than
+        # tokenizing `prefix + answer` and slicing at len(tok(prefix)).
+        #
+        # Slicing is only safe while the prefix happens to end on a token
+        # boundary BPE will not merge across. It does today -- the chat template
+        # ends in a newline, and DEFAULT_TEMPLATE ends "Short answer:" with no
+        # trailing space -- so this is a latent trap rather than a live bug.
+        # Verified against the Qwen2.5 tokenizer: end the prefix with a space
+        # instead ("Short answer: ") and " Vil" merges into one token, the
+        # prefix length comes out wrong, and every scored position shifts. The
+        # oracle would then rank noise with nothing in the output to say so, and
+        # the trigger would be an innocuous-looking edit to a frozen template.
+        # Concatenating ids removes the dependency; on the current templates it
+        # produces byte-identical token sequences to the old path.
+        answer_ids = tok(answer, add_special_tokens=False, return_tensors="pt")[
+            "input_ids"
+        ]
+        if answer_ids.shape[1] == 0:
             raise ValueError("answer contributed no tokens; check the tokenizer")
 
-        full_ids = full_ids.to(model.device)
+        n_prefix = prefix_ids.shape[1]
+        full_ids = torch.cat([prefix_ids, answer_ids], dim=1).to(model.device)
         with torch.no_grad():
             logits = model(full_ids).logits
 
         # logits[t] predicts token t+1, so answer token at position t is scored
         # by the distribution at t-1.
         log_probs = torch.log_softmax(logits[0, n_prefix - 1 : -1].float(), dim=-1)
-        answer_ids = full_ids[0, n_prefix:]
-        token_lp = log_probs.gather(-1, answer_ids.unsqueeze(-1)).squeeze(-1)
+        target_ids = full_ids[0, n_prefix:]
+        token_lp = log_probs.gather(-1, target_ids.unsqueeze(-1)).squeeze(-1)
         return float(token_lp.sum().item())
 
 

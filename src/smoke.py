@@ -3,7 +3,8 @@
 Checks, in order, the things that actually break:
   1. CUDA is visible and the 3060 is the device torch picks;
   2. the checkpoint loads in 4-bit and fits in VRAM;
-  3. greedy decoding is genuinely deterministic (same prompt twice, same answer);
+  3. greedy decoding is genuinely deterministic (same prompt twice, same answer),
+     including when the prompt sits in a different batch position;
   4. permuting a real context changes nothing about the content -- and whether it
      changes the answer, which is the entire premise in miniature;
   5. `score()` returns a usable answer log-prob, which the LOO oracle depends on.
@@ -81,12 +82,31 @@ def main() -> None:
     else:
         print("   OK: identical.")
 
+    # Repeating one prompt only proves batch-of-one determinism. Real runs batch
+    # variable-length prompts with left padding, and the cache is keyed on the
+    # prompt alone -- so if batch composition perturbs the logits, the answer
+    # stored for a prompt depends on which batch it happened to land in, and
+    # reruns with a different grid order silently disagree.
+    if len(examples) > 1:
+        others = [build_prompt(e.question, e.chunks) for e in examples[1:]]
+        padded = gen.generate_batch([probe] + others, params)[0].text
+        trailing = gen.generate_batch(others + [probe], params)[-1].text
+        print(f"   batched, first slot  {padded!r}")
+        print(f"   batched, last slot   {trailing!r}")
+        if padded == trailing == a:
+            print("   OK: batch position does not change the answer.")
+        else:
+            print("   WARNING: the answer depends on batch composition. Padding")
+            print("   numerics, most likely. The cache keys on the prompt alone,")
+            print("   so results become order-of-execution dependent. Drop")
+            print("   batch_size (2, then 1) and re-check before a long run.")
+
     print()
     print("=" * 62)
     print("4. Permutation sensitivity (the premise, in miniature)")
     print("=" * 62)
     for ex in examples:
-        orderings = permutation_set(ex.chunks, STRATEGIES, seed=20260828)
+        orderings = permutation_set(ex.chunks, STRATEGIES, seed=20260828, key=ex.qid)
         prompts = [build_prompt(ex.question, o) for o in orderings]
         # Content must be identical across permutations; only order differs.
         assert len({"".join(sorted(p)) for p in prompts}) == 1, "content changed!"

@@ -37,9 +37,10 @@ budgets: [2, 3, 5]
 arm_params:
   rerank_topk:
     model: cross-encoder/ms-marco-MiniLM-L-6-v2
-  placebo_pos:
-    # The novel control: drop by position, not content, at matched keep-count.
-    strategies: [middle_first, edges_first, tail_first]
+  # placebo_pos takes no arm_params: the runner expands the bare name into
+  # placebo_pos:middle_first / :edges_first / :tail_first, one arm each, and
+  # each appears under its own name in generations.csv. To run a single variant,
+  # write it out in `arms` above instead of the bare name.
   random_drop:
     seed: 20260828
   llm_pruner:
@@ -52,7 +53,12 @@ permutation:
 
 metrics:
   baseline_arm: rerank_topk     # denominator arm for OAE
-  placebo_arm: placebo_pos
+  # OPEN (HANDOFF Sec. 8): all three placebo variants run, but only one can be
+  # the confirmatory comparator for H4. middle_first is the default because it
+  # is the shape a lost-in-the-middle-aware pruner produces by accident, which
+  # is the specific confound RQ4 is aimed at. Confirm or change this in
+  # ANALYSIS_PLAN.md before the main run; the other two are then exploratory.
+  placebo_arm: placebo_pos:middle_first
   oracle_arm: loo_oracle
 
 stats:

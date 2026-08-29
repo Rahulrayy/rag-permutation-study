@@ -20,10 +20,21 @@ from ..chunks import Chunk
 _REGISTRY: dict[str, type["Pruner"]] = {}
 
 
+VARIANT_SEP = ":"
+
+
 class Pruner(ABC):
     """Base class for every arm."""
 
     name: str = "base"
+
+    #: Constructor keyword an ``arm:variant`` suffix binds to, or None if the
+    #: arm has no variants. See ``get_pruner``.
+    variant_param: str | None = None
+
+    #: Allowed values for that keyword, checked at construction time so a typo
+    #: in a config fails in milliseconds rather than hours into a grid.
+    variants: tuple[str, ...] = ()
 
     @abstractmethod
     def select(self, query: str, chunks: Sequence[Chunk], budget: int) -> list[int]:
@@ -66,11 +77,49 @@ def validate_selection(
     return selected
 
 
+def parse_arm(name: str) -> tuple[str, str | None]:
+    """Split ``"placebo_pos:middle_first"`` into ``("placebo_pos", "middle_first")``.
+
+    Variants are separate arms in the grid, in the CSV, and in every downstream
+    comparison -- which is what `placebo_pos`'s "run as separate cells and
+    reported separately" requires. Collapsing them into one arm would average
+    three different positional hypotheses into a single meaningless number.
+    """
+    base, sep, variant = name.partition(VARIANT_SEP)
+    return base, (variant if sep else None)
+
+
 def get_pruner(name: str, **kwargs: object) -> Pruner:
-    """Look up an arm by config name."""
-    if name not in _REGISTRY:
-        raise KeyError(f"unknown arm {name!r}; registered: {sorted(_REGISTRY)}")
-    return _REGISTRY[name](**kwargs)  # type: ignore[arg-type]
+    """Look up an arm by config name, resolving any ``arm:variant`` suffix."""
+    base, variant = parse_arm(name)
+    if base not in _REGISTRY:
+        raise KeyError(f"unknown arm {base!r}; registered: {sorted(_REGISTRY)}")
+    cls = _REGISTRY[base]
+    if variant is not None:
+        if not cls.variant_param:
+            raise ValueError(
+                f"arm {base!r} takes no {VARIANT_SEP}variant suffix, got {name!r}"
+            )
+        kwargs = {**kwargs, cls.variant_param: variant}
+    return cls(**kwargs)  # type: ignore[arg-type]
+
+
+def expand_arms(names: Sequence[str]) -> list[str]:
+    """Expand a bare arm name into its variants; leave everything else alone.
+
+    ``["full", "placebo_pos"]`` -> ``["full", "placebo_pos:middle_first", ...]``.
+    An explicitly written ``placebo_pos:tail_first`` passes through untouched, so
+    a config can pin one variant instead of taking all of them.
+    """
+    out: list[str] = []
+    for name in names:
+        base, variant = parse_arm(name)
+        cls = _REGISTRY.get(base)
+        if variant is None and cls is not None and cls.variants:
+            out.extend(f"{base}{VARIANT_SEP}{v}" for v in cls.variants)
+        else:
+            out.append(name)
+    return out
 
 
 def registered_arms() -> list[str]:

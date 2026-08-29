@@ -63,8 +63,8 @@ with the week they are due — they never return fake data.
 
 `analysis/` and `results/` are empty. Figures (`--figures-only`) are week 6.
 
-**77 tests pass** (`python -m pytest -q`, ~7s). `tests/test_data.py` is marked
-`network` and downloads HotpotQA on first run; `pytest -m "not network"` skips it.
+**100 tests pass** (`python -m pytest -q`, ~3s). One test downloads HotpotQA on
+first run and carries the `network` marker; `pytest -m "not network"` skips it.
 
 ---
 
@@ -130,6 +130,13 @@ select different examples, and then pilot numbers are not comparable to main-run
 numbers. Tested.
 
 **Seed is 20260828 everywhere.**
+
+**Random permutations are keyed on the query id.** The three random orderings
+differ from query to query; `rank` and `reverse` do not, since they stand for
+single fixed ordering rules. Seeding on `(seed, replicate, n)` alone would reuse
+one trio of orderings across the whole dataset, making the random draws a sample
+of size three from n! whose sampling error never averages out over queries.
+Recorded in `ANALYSIS_PLAN.md` Sec. 4.
 
 ---
 
@@ -279,11 +286,13 @@ together with a high mean.** That is parametric recall, not stability, and it
 would produce a misleading FAIL at the gate. `gate.py` prints a warning above 0.75
 mean F1, but the real check is the `nocontext` arm.
 
-**Does `placebo_pos` need all three variants in the main grid?** Currently
-`middle_first`, `edges_first` and `tail_first` are configured as separate
-strategies. Which one wins is itself informative about where this generator's
-position bias lives, but running all three triples that arm's cost. Decide before
-the main run whether all three are confirmatory or whether two are exploratory.
+**Does `placebo_pos` need all three variants in the main grid?** All three run:
+a bare `placebo_pos` in a config expands to `placebo_pos:middle_first`,
+`:edges_first` and `:tail_first`, one arm each, each under its own name in
+`generations.csv`. `ANALYSIS_PLAN.md` now names `middle_first` as the
+confirmatory comparator for H4 and the other two as exploratory — still a TODO
+to confirm before registering. To run only one, write it out in `arms` instead of
+the bare name.
 
 **Is `main.py` wanted?** It is a 0-byte PyCharm placeholder, committed as-is
 because it was pre-existing. `src/` is the real entry point. Probably delete it.

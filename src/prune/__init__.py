@@ -4,7 +4,14 @@ Add an arm: one module here, one Pruner subclass with a `name`, one import below
 That is the whole cost of a ninth arm.
 """
 
-from .base import Pruner, get_pruner, registered_arms, validate_selection
+from .base import (
+    Pruner,
+    expand_arms,
+    get_pruner,
+    parse_arm,
+    registered_arms,
+    validate_selection,
+)
 from .full import Full
 from .llm_pruner import LLMPruner
 from .llmlingua2 import LLMLingua2
@@ -17,7 +24,9 @@ from .rerank_topk import RerankTopK
 
 __all__ = [
     "Pruner",
+    "expand_arms",
     "get_pruner",
+    "parse_arm",
     "registered_arms",
     "validate_selection",
     "Full",

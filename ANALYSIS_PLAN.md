@@ -18,7 +18,11 @@ never silently into the confirmatory sections.
   orderings-worth of noise.
 - **H3 (RQ3).** Rank Flip Rate across single orderings is > TODO.
 - **H4 (RQ4).** Placebo Gap — `Q(m) - Q(placebo_pos)` at matched keep-count —
-  does not exclude zero for at least one published pruner.
+  does not exclude zero for at least one published pruner. All three placebo
+  variants run as separate arms; the confirmatory comparator is
+  **`placebo_pos:middle_first`**, the shape a lost-in-the-middle-aware pruner
+  produces by accident and so the specific confound RQ4 targets. `edges_first`
+  and `tail_first` are reported as exploratory. TODO: confirm before registering.
 
 ## 2. Primary endpoint
 
@@ -48,6 +52,7 @@ Proposed: OAE of `provence` vs `rerank_topk` at k=3, token-F1, filtered set.
 | Decoding | greedy, `do_sample=False`, no temperature/top_p passed |
 | Seed | 20260828 |
 | Permutations P | 5 (as-given, reverse, 3 seeded random) |
+| Random permutation seeding | per query: `seed:qid:replicate:n` |
 | Budgets k | 2, 3, 5 |
 | n (main) | 300 |
 | Prompt template | `generate.DEFAULT_TEMPLATE`, frozen below |
@@ -81,6 +86,21 @@ as the reason for the choice. Selecting a prompt to maximise the study's headlin
 quantity would be a forking-paths error; the stated criterion is that EM and
 token-F1 only measure what they claim to when the model emits an answer rather
 than a sentence about the answer.
+
+**Random permutations are drawn per query, not once for the dataset.** The three
+random orderings are seeded on the query id as well as the run seed, so two
+queries see different random arrangements. The alternative — one trio of
+orderings reused for every query, which is what seeding on `(seed, replicate, n)`
+alone produces — makes the study's random draws a single sample of size three
+from n!, and the sampling error in that one draw does not average out over
+queries however many queries are run. Since the week-1 gate is a directional test
+against a fixed threshold, an unlucky trio could bias the median within-query SD
+in either direction with nothing in the data to reveal it.
+
+`rank` and `reverse` are deliberately *not* keyed on the query: they are single
+fixed ordering rules, which is what they are meant to represent, and they are the
+two strategies standing in for how a published evaluation actually fixes an
+order.
 
 Note on the `rank` permutation strategy: HotpotQA distractor has no retriever, so
 "rank" is the **as-given** dataset paragraph order, not a retriever ranking. Use

@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.cache import GenerationCache
+from src.cache import CachedGeneration, GenerationCache
 from src.generate import (
     CachedGenerator,
     DecodeParams,
@@ -68,3 +68,66 @@ def test_batch_preserves_order_with_mixed_hits(tmp_path):
 def test_decode_params_key_is_order_independent():
     a = DecodeParams(max_new_tokens=32, seed=1).as_key()
     assert a == DecodeParams(seed=1, max_new_tokens=32).as_key()
+
+
+class _CountingBackend:
+    """Records exactly which prompts the backend was asked to generate."""
+
+    model = "counting"
+
+    def __init__(self):
+        self.seen = []
+
+    def generate(self, prompt, params):
+        return self.generate_batch([prompt], params)[0]
+
+    def generate_batch(self, prompts, params):
+        self.seen.extend(prompts)
+        return [CachedGeneration(text=f"answer for {p}") for p in prompts]
+
+    def score(self, prompt, answer):
+        return 0.0
+
+
+def test_duplicate_prompts_are_generated_once(tmp_path):
+    """The `full` arm keeps all ten chunks at every budget, so main.yaml's three
+    budgets resolve to one set of prompts and must be paid for once."""
+    backend = _CountingBackend()
+    gen = CachedGenerator(backend, GenerationCache(tmp_path / "c.sqlite"))
+    out = gen.generate_batch(["a", "b", "a", "a", "b"], DecodeParams())
+
+    assert backend.seen == ["a", "b"]
+    assert [g.text for g in out] == [
+        "answer for a", "answer for b", "answer for a",
+        "answer for a", "answer for b",
+    ]
+
+
+def test_short_backend_result_raises_instead_of_misaligning(tmp_path):
+    """Silently dropping a generation would shift every downstream row against
+    its metadata -- corrupting results rather than crashing."""
+
+    class Short(_CountingBackend):
+        def generate_batch(self, prompts, params):
+            return super().generate_batch(prompts, params)[:-1]
+
+    gen = CachedGenerator(Short(), GenerationCache(tmp_path / "c.sqlite"))
+    with pytest.raises(RuntimeError, match="misaligned"):
+        gen.generate_batch(["a", "b"], DecodeParams())
+
+
+def test_generations_are_cached_before_the_whole_batch_finishes(tmp_path):
+    """A crash nine hours into an overnight run must keep what it already paid
+    for; a single flush at the end would lose all of it."""
+
+    class Exploding(_CountingBackend):
+        def generate_batch(self, prompts, params):
+            if "boom" in prompts:
+                raise RuntimeError("GPU fell over")
+            return super().generate_batch(prompts, params)
+
+    cache = GenerationCache(tmp_path / "c.sqlite")
+    gen = CachedGenerator(Exploding(), cache, flush_every=2)
+    with pytest.raises(RuntimeError, match="fell over"):
+        gen.generate_batch(["a", "b", "c", "boom"], DecodeParams())
+    assert len(cache) == 2

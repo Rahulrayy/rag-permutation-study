@@ -103,3 +103,41 @@ def test_holm_is_step_down_and_monotone():
 
 def test_holm_caps_at_one():
     assert all(v <= 1.0 for v in holm({"a": 0.6, "b": 0.7, "c": 0.9}).values())
+
+
+def _mean_of(arm):
+    """Deliberately *not* internally paired, unlike the metrics in metrics.py:
+    it is the shape of statistic that exposes a mismatched population."""
+    def stat(scores):
+        return float(np.mean([np.mean(v) for v in scores[arm].values()]))
+
+    return stat
+
+
+def test_point_estimate_uses_the_same_population_as_the_replicates():
+    """Drawing the point from the unrestricted scores while resampling only the
+    shared queries lets the point land outside its own CI."""
+    scores = {
+        "m": {f"q{i}": [1.0] * 3 for i in range(10)},
+        "b": {f"q{i}": [1.0] * 3 for i in range(10)},
+    }
+    scores["m"]["only_in_m"] = [0.0] * 3  # unshared: never resampled
+
+    res = two_level_bootstrap(scores, _mean_of("m"), n_replicates=200, seed=1)
+    assert res.point == pytest.approx(1.0)
+    assert res.lo <= res.point <= res.hi
+
+
+def test_bootstrap_rejects_empty_scores():
+    with pytest.raises(ValueError, match="no arms"):
+        two_level_bootstrap({}, _mean_of("m"), n_replicates=10)
+
+
+def test_p_value_ignores_non_finite_replicates():
+    """nan compares False against both <= 0 and >= 0, so counting it in the
+    denominator would let it drag the p-value down without ever voting."""
+    from src.stats import BootstrapResult
+
+    reps = np.array([1.0, 1.0, 1.0, np.nan])
+    res = BootstrapResult(point=1.0, lo=1.0, hi=1.0, ci=0.95, replicates=reps)
+    assert res.p_two_sided() == pytest.approx(2 / 3)

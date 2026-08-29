@@ -104,3 +104,27 @@ def test_metrics_are_paired_on_shared_queries():
     scores = {"m": {"q1": [1.0], "q2": [0.0]}, "b": {"q1": [0.0]}}
     assert order_adjusted_effect.__name__  # sanity
     assert placebo_gap(scores, "m", "b") == 1.0
+
+
+def test_rank_flip_rate_is_paired_on_shared_queries():
+    """A query present in only one arm must not move that arm's mean. A flip
+    caused by differing populations is not a flip caused by ordering, which is
+    the only thing RFR claims to detect."""
+    a = {"q1": [1.0, 0.0], "q2": [1.0, 0.0]}
+    b = {"q1": [0.0, 1.0], "q2": [0.0, 1.0]}
+    paired = rank_flip_rate({"a": a, "b": b})
+    with_extra = rank_flip_rate({"a": a, "b": {**b, "q3": [1.0, 1.0]}})
+    assert with_extra == paired == 0.0
+
+
+def test_rank_flip_rate_requires_shared_queries():
+    with pytest.raises(ValueError, match="shared"):
+        rank_flip_rate({"a": {"q1": [1.0, 0.0]}, "b": {"q2": [0.0, 1.0]}})
+
+
+def test_oae_rejects_a_single_permutation_baseline():
+    """The OAE denominator is a within-query SD; one permutation makes it
+    undefined, and it must say so rather than return a silent nan."""
+    scores = {"m": {"q1": [1.0, 0.5]}, "b": {"q1": [0.5]}}
+    with pytest.raises(ValueError, match="permutations"):
+        order_adjusted_effect(scores, "m", "b")

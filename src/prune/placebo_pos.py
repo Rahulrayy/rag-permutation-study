@@ -43,8 +43,19 @@ def _drop_order(n: int, strategy: Strategy) -> list[int]:
 
 class PlaceboPositional(Pruner):
     name = "placebo_pos"
+    # Config writes `placebo_pos`, the runner expands it to three separate arms
+    # named `placebo_pos:middle_first` and so on. See prune.base.expand_arms.
+    variant_param = "strategy"
+    variants = ("middle_first", "edges_first", "tail_first")
 
     def __init__(self, strategy: Strategy = "middle_first") -> None:
+        # Validate here, not in `select`: a mistyped strategy in a config should
+        # fail before the model loads, not partway through an overnight grid.
+        if strategy not in self.variants:
+            raise ValueError(
+                f"unknown placebo strategy: {strategy!r}; "
+                f"expected one of {self.variants}"
+            )
         self.strategy: Strategy = strategy
 
     def select(self, query: str, chunks: Sequence[Chunk], budget: int) -> list[int]:

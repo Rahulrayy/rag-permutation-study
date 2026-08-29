@@ -89,9 +89,13 @@ def subsample(
     stratify_by: str | None = None,
 ) -> list[Example]:
     """Seeded, stratified, and nested across n. See ``_stratified_order``."""
-    if n_queries is None or n_queries >= len(examples):
-        return list(examples)
+    if n_queries is not None and n_queries <= 0:
+        raise ValueError(f"n_queries must be positive, got {n_queries}")
 
+    # The full set goes through the same ordering as any subset. Returning the
+    # natural order here instead would break the prefix property at exactly one
+    # boundary: n=300 would not be a prefix of the whole population, only of
+    # every proper subset of it.
     if stratify_by is None:
         keys = ["_all"] * len(examples)
     elif stratify_by == "hop_type":
@@ -100,7 +104,8 @@ def subsample(
         keys = [str(ex.meta.get(stratify_by, "_unlabelled")) for ex in examples]
 
     order = _stratified_order(keys, seed)
-    return [examples[i] for i in order[:n_queries]]
+    limit = len(examples) if n_queries is None else min(n_queries, len(examples))
+    return [examples[i] for i in order[:limit]]
 
 
 # --------------------------------------------------------------------------- #
@@ -218,12 +223,20 @@ def memorization_filter(
     examples: Sequence[Example],
     nocontext_predictions: dict[str, str],
     correct_fn: Callable[[str, str], float] | None = None,
+    threshold: float = 1.0,
 ) -> list[Example]:
     """Keep only the queries the generator gets **wrong** with no context.
 
     Non-negotiable (plan Sec. 4.1): Wikipedia-derived multi-hop benchmarks leak
     into pretraining. Without this you are measuring parametric recall and
     calling it retrieval. Report filtered and unfiltered numbers, always both.
+
+    "Correct" is ``correct_fn(pred, gold) >= threshold``. The default pair --
+    exact match at 1.0 -- is the strict reading. ANALYSIS_PLAN.md Sec. 3 leaves
+    the choice open between that and a token-F1 cutoff; the threshold is a
+    parameter so the F1 option is expressible rather than requiring the
+    comparison itself to be rewritten. Whichever is picked has to be registered
+    before the main run.
     """
     from .metrics import exact_match
 
@@ -233,7 +246,7 @@ def memorization_filter(
         pred = nocontext_predictions.get(ex.qid)
         if pred is None:
             raise KeyError(f"no nocontext prediction for {ex.qid!r}; run that arm first")
-        if correct_fn(pred, ex.answer) < 1.0:
+        if correct_fn(pred, ex.answer) < threshold:
             kept.append(ex)
     return kept
 

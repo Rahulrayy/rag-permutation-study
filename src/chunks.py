@@ -32,11 +32,23 @@ def permute(
     strategy: PermStrategy,
     seed: int,
     replicate: int = 0,
+    key: str = "",
 ) -> list[Chunk]:
     """Return chunks in the requested order. Pure; does not mutate the input.
 
     ``replicate`` distinguishes the three independent random permutations so
     they don't collapse to the same ordering under a shared seed.
+
+    ``key`` varies the random orderings *across queries* and is the query id at
+    call sites. Without it the seed depends only on (seed, replicate, n), so
+    every query of a given context size is shown the identical three random
+    permutations -- the study's random draws would then be a sample of size
+    three from n! shared by the whole dataset, and the sampling error in that
+    draw would not average out over queries. Because the week-1 gate is a
+    directional test against a fixed threshold, an unlucky trio could bias the
+    median within-query SD either way with nothing in the data to reveal it.
+    ``rank`` and ``reverse`` are deliberately unaffected: they are single fixed
+    ordering *rules*, which is exactly what they are meant to represent.
     """
     items = list(chunks)
     if strategy == "rank":
@@ -46,7 +58,7 @@ def permute(
     if strategy == "random":
         # str seeding goes through sha512: deterministic across runs and
         # unaffected by PYTHONHASHSEED, unlike hashing a tuple.
-        rng = random.Random(f"{seed}:{replicate}:{len(items)}")
+        rng = random.Random(f"{seed}:{key}:{replicate}:{len(items)}")
         shuffled = sorted(items, key=lambda c: c.rank)
         rng.shuffle(shuffled)
         return shuffled
@@ -57,12 +69,19 @@ def permutation_set(
     chunks: Sequence[Chunk],
     strategies: Sequence[PermStrategy],
     seed: int,
+    key: str = "",
 ) -> list[list[Chunk]]:
-    """The P orderings for one cell. Random replicates are numbered in order."""
+    """The P orderings for one cell. Random replicates are numbered in order.
+
+    Pass the query id as ``key`` so the random orderings vary across queries;
+    see ``permute``.
+    """
     out: list[list[Chunk]] = []
     replicate = 0
     for strategy in strategies:
-        out.append(permute(chunks, strategy, seed=seed, replicate=replicate))
+        out.append(
+            permute(chunks, strategy, seed=seed, replicate=replicate, key=key)
+        )
         if strategy == "random":
             replicate += 1
     return out
@@ -86,6 +105,8 @@ def positional_bucket(position: int, n: int) -> Literal["begin", "middle", "end"
     """Coarse bucket. Sec. 3 premise 2: the effect lives here, not in fine distance."""
     if n <= 0:
         raise ValueError("n must be positive")
+    if not 0 <= position < n:
+        raise ValueError(f"position {position} out of range for n={n}")
     if position == 0:
         return "begin"
     if position == n - 1:
