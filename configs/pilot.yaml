@@ -16,8 +16,14 @@ generator:
   model: Qwen/Qwen2.5-3B-Instruct
   quantization: 4bit
   max_new_tokens: 32
-  # 6.4 GB VRAM: batch 5 already reached 5.9 GB in the smoke test.
-  batch_size: 4
+  # 6.4 GB VRAM, and the laptop display runs off the same GPU. Batch 5 reached
+  # 5.9 GB in the smoke test; batch 4 ran but starved the compositor badly
+  # enough to drop the monitor. Batch 2 leaves headroom for the display.
+  batch_size: 2
+  # Hard ceiling, so overrunning is a clean CUDA OOM rather than a display
+  # crash. The cache keeps whatever was already generated, so a restart at a
+  # smaller batch resumes instead of starting over.
+  max_vram_fraction: 0.65
   # Greedy everywhere. Sampling would confound sampling noise with
   # permutation noise and collapse the whole design (plan Sec. 4.2).
   temperature: 0.0

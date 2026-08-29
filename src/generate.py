@@ -262,6 +262,13 @@ class LocalGenerator:
     # None -> standard HF cache. Never point this inside the project:
     # the repo is under OneDrive and weights would sync to the cloud.
     cache_dir: str | None = None
+    # Hard ceiling on the share of VRAM this process may allocate, or None for
+    # no cap. On a laptop the display runs off the same GPU, so an unbounded
+    # run does not fail cleanly: it starves the compositor and the monitor
+    # drops out. A cap converts that into an ordinary CUDA OOM, which is
+    # recoverable -- the cache keeps every generation already paid for, so a
+    # restart at a smaller batch resumes rather than starts over.
+    max_vram_fraction: float | None = None
     _tok: Any = field(default=None, init=False, repr=False)
     _model: Any = field(default=None, init=False, repr=False)
 
@@ -271,6 +278,21 @@ class LocalGenerator:
 
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        if self.max_vram_fraction is not None:
+            if not 0.0 < self.max_vram_fraction <= 1.0:
+                raise ValueError(
+                    f"max_vram_fraction must be in (0, 1], got {self.max_vram_fraction}"
+                )
+            if torch.cuda.is_available():
+                # Applied before the weights load, so the cap covers loading too.
+                torch.cuda.set_per_process_memory_fraction(self.max_vram_fraction)
+                total = torch.cuda.get_device_properties(0).total_memory
+                print(
+                    f"VRAM capped at {self.max_vram_fraction:.0%} "
+                    f"({total * self.max_vram_fraction / 1e9:.2f} GB of "
+                    f"{total / 1e9:.2f} GB)"
+                )
 
         tok = AutoTokenizer.from_pretrained(self.model, cache_dir=self.cache_dir)
         if tok.pad_token is None:

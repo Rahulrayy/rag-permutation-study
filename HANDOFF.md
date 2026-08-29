@@ -1,7 +1,7 @@
 # Handoff
 
-State of `rag-order-audit` as of **2026-08-28**, commit `0ce0287` (initial commit,
-branch `master`).
+State of `rag-order-audit` as of **2026-08-29**, branch `master`. Week-by-week progress lives in [`TIMELINE.md`](TIMELINE.md); this file
+is the current state and the reasoning behind it.
 
 Read [`rag-permutation-project-plan.md`](rag-permutation-project-plan.md) first —
 it is the design document and this file does not repeat it. This file covers what
@@ -30,10 +30,18 @@ collected and is enforced in `src/gate.py`. On FAIL, the tool prints the Sec. 9
 escalation ladder — more chunks → longer chunks → weaker generator → MuSiQue —
 and the fallback consolidation study reuses roughly 80% of this code.
 
-Early indications are encouraging but are **not** the gate: a 12-query probe
-(§5 below) showed median within-query SD of 0.067, and a 3-query smoke test showed
-token-F1 spreads of 0.750 and 0.895 on two of three questions. Twelve queries is
-not one hundred.
+`python -m src.smoke` **passes all six sections** as of 2026-08-29: CUDA visible,
+checkpoint loads in 4-bit at 2.06 GB, greedy decoding deterministic *and*
+invariant to batch position, permutation sensitivity visible, answer log-probs
+usable.
+
+Early indications are encouraging but are **not** the gate. The 3-query smoke
+test showed one question ("Which television series was part of Cartoon Network's
+2017 April Fools...", gold `Rick and Morty`) scoring F1 1.00 under both `rank`
+and `reverse` and 0.00 under all three random permutations — a full 1.000 spread
+on identical content under greedy decoding. The other two were flat. A 12-query
+probe (§5) showed median within-query SD of 0.067. Twelve queries is not one
+hundred, and three is not twelve.
 
 ---
 
@@ -51,7 +59,7 @@ with the week they are due — they never return fake data.
 | `src/stats.py` | **done** | Two-level bootstrap, Holm correction |
 | `src/gate.py` | **done** | Week-1 kill criterion + escalation ladder |
 | `src/run.py` | **done** | Experiment driver; batches across the whole grid |
-| `src/smoke.py` | **done** | Five-point GPU check; run before any long job |
+| `src/smoke.py` | **done** | Six-point GPU check; run before any long job |
 | `src/generate.py` | **mostly** | `LocalGenerator` written and verified on GPU; `GroqGenerator` is a week-5 stub |
 | `src/prune/full,nocontext,random_drop,placebo_pos` | **done** | Includes the study's novel control |
 | `src/prune/rerank_topk` | stub | Week 2. Default OAE baseline arm |
@@ -103,6 +111,21 @@ to the same prompt, and they should share a cache entry.
 **Every arm honours its budget exactly.** `validate_selection` enforces it. A
 pruner quietly returning k+1 chunks breaks the matched-keep-count comparison
 against `placebo_pos`, which is the study's centerpiece.
+
+**One arm, one budget, when measuring across permutations.** Grouping generations
+by `(arm, query)` alone pools every keep-k cell for that arm, so on a main-run CSV
+the `full` arm at budgets 2/3/5 yields fifteen values per query that are *not*
+fifteen permutations of one context. The pooled SD would mostly measure the
+budget contrast, and it passes a ragged-count check because it is uniformly
+fifteen. `gate.gate_report` now refuses to run until a budget is pinned; keep any
+new analysis code to the same rule.
+
+**Comparisons are paired, without exception.** Every metric restricts to the
+queries shared by the arms it compares, and `two_level_bootstrap` draws its point
+estimate from the same restricted population it resamples. An arm evaluated over
+a different query set than the arm it is compared against produces a difference
+that is partly a population difference — which is not what any of these metrics
+claim to measure.
 
 ---
 
@@ -186,10 +209,21 @@ varied instruction wording too, which would have confounded the Sec. 8 delimiter
 robustness check with the verbosity effect above. An `assert` at import time
 enforces the isolation.
 
-**The LOO oracle has real signal.** `logP(answer | all 10 paragraphs) = -1.271`
-versus `-13.647` with the gold paragraphs removed — a 12.4-nat drop, on one
-example. This is the only exercise of `Generator.score` before week 3, and it is
-the reason the primary generator is local rather than hosted.
+**The LOO oracle has signal, but far less than first recorded.** This file
+previously reported `logP(answer | all 10 paragraphs) = -1.271` versus `-13.647`
+with the gold paragraphs removed, a 12.4-nat drop. **Those numbers do not
+reproduce.** Re-run on 2026-08-29 against the same example, the committed code
+gives `-0.0001` versus `-1.785` — a **1.79-nat** drop. The earlier figures must
+have come from a pre-commit exploratory script rather than from `src.smoke` as it
+stands; they should not be quoted again.
+
+The direction holds, so the oracle has something to rank on, and this is still
+the reason the primary generator is local rather than hosted. But note what
+`-1.785` means: with **both gold paragraphs removed**, the model still assigns the
+full answer sequence roughly 17% probability. Some of that is the eight remaining
+distractors being topically related, but it is also exactly the memorization
+pattern §8 warns about. The `nocontext` arm settles it; do not assume the oracle
+has a 12-nat dynamic range to work with.
 
 ---
 
@@ -213,9 +247,24 @@ pip install torch --index-url https://download.pytorch.org/whl/cu128
 pip install -r requirements.txt
 ```
 
-**VRAM is the binding constraint.** `batch_size` is **4** in both configs. Batch 5
-reached 5.9 GB of 6.4 GB during the smoke test; 8 will OOM. If you hit an OOM
-anyway, drop to 2 before suspecting anything else.
+**VRAM is the binding constraint, and it does not fail politely.** `batch_size` is
+**2** in both configs, with `max_vram_fraction: 0.65` as a hard ceiling.
+
+The history matters, because the first version of this note understated the
+limit. Batch 5 reached 5.9 GB of 6.4 GB in the smoke test and 8 will OOM, so
+batch 4 looked safe — and it does run. But **the laptop display is driven by the
+same GPU**, and at batch 4 the pilot starved the compositor badly enough that the
+monitor cut out repeatedly. That is the real ceiling on this machine, and it is
+lower than the OOM ceiling.
+
+An OOM is the *polite* failure mode. The dangerous one is no error at all: the
+run keeps going and takes the screen with it. `max_vram_fraction` is applied via
+`torch.cuda.set_per_process_memory_fraction` before the weights load, so
+overrunning now raises an ordinary CUDA OOM instead. At 0.65 the cap is ~4.0 GB
+of 6.1 GB, leaving ~2.1 GB for the display.
+
+If the monitor still drops: `batch_size: 1`, then `max_vram_fraction: 0.5`. Both
+only make the run slower. **Recovery is cheap** — see §9 on the cache.
 
 **Keep the HuggingFace cache out of the project directory.** This repo lives under
 `OneDrive\Desktop\...`. An early default put the HF cache at `./hf_cache`, and 1.5
@@ -231,9 +280,14 @@ README has the mapping.
 
 ## 7. Next steps, in order
 
-**1. Run the gate.** Two commands, §1 above. Commit the result either way: a PASS
-is the green light for week 2; a FAIL is a real finding, with the threshold
-already on record, and sends you to the Sec. 9 ladder.
+**1. Run the gate.** `python -m src.smoke` is **done and passing**. What remains is
+the pilot and the gate itself, the two commands in §1. Commit the result either
+way: a PASS is the green light for week 2; a FAIL is a real finding, with the
+threshold already on record, and sends you to the Sec. 9 ladder.
+
+Note when comparing against the 0.067 from the 12-query probe: **permutations are
+now seeded per query** (§4), so the pilot's random orderings are not the trio
+that probe used. The numbers are not directly comparable.
 
 **2. Before week 3, re-check the literature.** The plan (Sec. 2) commits to a
 targeted search on *"permutation-controlled evaluation context pruning"* and
@@ -301,8 +355,11 @@ because it was pre-existing. `src/` is the real entry point. Probably delete it.
 
 ## 9. Things that will waste your time if you forget them
 
-- **The cache makes reruns free.** 500 generations replay in under a second. Never
-  hand-edit results to avoid a rerun; just rerun.
+- **The cache makes reruns free, and interruptions cheap.** 500 generations replay
+  in under a second. Generations are flushed to SQLite every block, not once at
+  the end, so killing a run keeps everything already paid for — demonstrated on
+  2026-08-29, when the pilot was stopped mid-run for VRAM headroom and 224 of 500
+  generations survived and replayed. Never hand-edit results to avoid a rerun.
 - **`--backend dummy`** exercises the entire pipeline with no GPU. Its numbers are
   meaningless by construction — the backend returns a hash-derived word from a
   five-word vocabulary — so never report a gate result from it. It is for plumbing
@@ -312,4 +369,6 @@ because it was pre-existing. `src/` is the real entry point. Probably delete it.
   than ten hours into an overnight run.
 - **`--n 20`** shrinks any config for a fast sanity pass.
 - Background pip and model downloads buffer their output; an empty log file does
-  not mean a hung process. Check `nvidia-smi` instead.
+  not mean a hung process. Check `nvidia-smi` instead. `src.run` now prints a
+  progress line per flushed block, but that too is buffered through a pipe — run
+  Python with `-u` if you need it live.
