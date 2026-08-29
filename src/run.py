@@ -137,7 +137,7 @@ def run(cfg: Config) -> Path:
         prompts = [build_prompt(ex.question, [], template) for ex in examples]
         for ex, gen in zip(examples, generator.generate_batch(prompts, params)):
             nocontext_preds[ex.qid] = gen.text
-            rows.append(_row(ex, "nocontext", 0, 0, "none", [], [], gen.text))
+            rows.append(_row(ex, "nocontext", 0, 0, "none", [], [], 0, gen.text))
         print(f"nocontext arm: {len(nocontext_preds)} generations")
 
     if data_cfg.get("memorization_filter"):
@@ -176,6 +176,10 @@ def run(cfg: Config) -> Path:
         pruner = pruners[arm]
         selected = pruner.select(ex.question, ex.chunks, budget)
         kept_chunks = keep(ex.chunks, selected)
+        # Third step, separate from selection and ordering: compression methods
+        # rewrite chunk *content* (Provence prunes sentences). Identity for
+        # every other arm. See prune.base.Pruner.rewrite.
+        kept_chunks = pruner.rewrite(ex.question, kept_chunks)
 
         orderings = permutation_set(
             kept_chunks,
@@ -186,7 +190,8 @@ def run(cfg: Config) -> Path:
             key=ex.qid,
         )
         for perm_idx, ordering in enumerate(orderings):
-            pending_prompts.append(build_prompt(ex.question, ordering, template))
+            prompt = build_prompt(ex.question, ordering, template)
+            pending_prompts.append(prompt)
             pending_meta.append(
                 (
                     ex,
@@ -196,8 +201,18 @@ def run(cfg: Config) -> Path:
                     perm_cfg["strategies"][perm_idx],
                     selected,
                     [c.idx for c in ordering],
+                    # Arms compress at different granularities, so keep-k is not
+                    # a common currency across them (plan Sec. 4.3). Recorded at
+                    # generation time because it cannot be reconstructed later
+                    # once the rewritten text is gone.
+                    sum(len(c.text) for c in ordering),
                 )
             )
+
+    # Pruners are done. Provence is 1.74 GB and the generator needs 2.06 GB on a
+    # 6 GB card, so hand the VRAM back before the first generation runs.
+    for pruner in pruners.values():
+        pruner.close()
 
     generations = generator.generate_batch(pending_prompts, params)
     for meta, gen in zip(pending_meta, generations):
@@ -234,6 +249,7 @@ def _row(
     perm_strategy: str,
     selected: list[int],
     order: list[int],
+    context_chars: int,
     prediction: str,
 ) -> dict[str, Any]:
     return {
@@ -253,6 +269,7 @@ def _row(
             [order.index(g) for g in ex.gold_chunk_ids if g in order]
         ),
         "n_gold_kept": sum(1 for g in ex.gold_chunk_ids if g in order),
+        "context_chars": context_chars,
         "prediction": prediction,
         "gold": ex.answer,
         "em": exact_match(prediction, ex.answer),

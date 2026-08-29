@@ -30,7 +30,10 @@ never silently into the confirmatory sections.
 ## 2. Primary endpoint
 
 TODO — one metric, one arm pair, one budget. Everything else is secondary.
-Proposed: OAE of `provence` vs `rerank_topk` at k=3, token-F1, filtered set.
+Proposed: OAE of `provence_rerank` vs `rerank_topk` at k=3, token-F1, filtered
+set. (Provence runs as two arms: `provence_rerank` is selection-only and so is
+content-matched at equal k; `provence_full` is the published method and is
+reported against input-token count. See `src/prune/provence.py`.)
 
 ## 3. Analysis population
 

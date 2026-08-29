@@ -10,6 +10,7 @@ from .base import (
     get_pruner,
     parse_arm,
     registered_arms,
+    validate_rewrite,
     validate_selection,
 )
 from .full import Full
@@ -18,7 +19,7 @@ from .llmlingua2 import LLMLingua2
 from .loo_oracle import LOOOracle
 from .nocontext import NoContext
 from .placebo_pos import PlaceboPositional
-from .provence import Provence
+from .provence import ProvenceFull, ProvenceRerank
 from .random_drop import RandomDrop
 from .rerank_topk import RerankTopK
 
@@ -28,6 +29,7 @@ __all__ = [
     "get_pruner",
     "parse_arm",
     "registered_arms",
+    "validate_rewrite",
     "validate_selection",
     "Full",
     "LLMPruner",
@@ -35,7 +37,8 @@ __all__ = [
     "LOOOracle",
     "NoContext",
     "PlaceboPositional",
-    "Provence",
+    "ProvenceFull",
+    "ProvenceRerank",
     "RandomDrop",
     "RerankTopK",
 ]

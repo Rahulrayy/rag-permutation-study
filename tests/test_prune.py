@@ -7,13 +7,16 @@ import pytest
 from src.prune import expand_arms, get_pruner, registered_arms
 from src.prune.base import validate_selection
 
-IMPLEMENTED = ["full", "nocontext", "random_drop", "placebo_pos"]
+IMPLEMENTED = [
+    "full", "nocontext", "random_drop", "placebo_pos",
+    "provence_rerank", "provence_full",
+]
 
 
-def test_all_nine_arms_are_registered():
+def test_all_arms_are_registered():
     assert set(registered_arms()) == {
-        "full", "nocontext", "rerank_topk", "provence", "llmlingua2",
-        "llm_pruner", "random_drop", "placebo_pos", "loo_oracle",
+        "full", "nocontext", "rerank_topk", "provence_rerank", "provence_full",
+        "llmlingua2", "llm_pruner", "random_drop", "placebo_pos", "loo_oracle",
     }
 
 
@@ -91,6 +94,98 @@ def test_unimplemented_arms_raise_not_implemented(chunks):
     for arm in set(registered_arms()) - set(IMPLEMENTED):
         with pytest.raises(NotImplementedError):
             get_pruner(arm).select("q", chunks, 3)
+
+
+# --------------------------------------------------------------------------- #
+# Provence. A stub stands in for the checkpoint: these tests cover the arm's
+# contract, not the model's quality, and must not download 1.74 GB or touch a
+# GPU to run.
+# --------------------------------------------------------------------------- #
+
+class _StubProvence:
+    """Mimics the real `process()` shape: scores plus sentence-pruned text."""
+
+    def __init__(self, scores, pruned):
+        self.scores, self.pruned, self.calls = scores, pruned, 0
+
+    def process(self, question, context, title, **kw):
+        self.calls += 1
+        return {
+            "reranking_score": [self.scores],
+            "pruned_context": [self.pruned],
+            "compression_rate": [[0.0] * len(self.scores)],
+        }
+
+
+@pytest.fixture
+def stub_provence(chunks, monkeypatch):
+    from src.prune import provence as mod
+
+    # descending relevance for chunks 9..0, so top-k is unambiguous
+    scores = [float(i) for i in range(10)]
+    pruned = ["" if i in (9, 8) else f"kept{i}" for i in range(10)]
+    stub = _StubProvence(scores, pruned)
+    monkeypatch.setattr(mod, "_load", lambda checkpoint, device: stub)
+    monkeypatch.setattr(mod, "unload_all", lambda: None)
+    return stub
+
+
+def test_provence_selects_top_k_by_score(stub_provence, chunks):
+    """Scores ascend with index, so the top 3 are chunks 9, 8, 7."""
+    kept = get_pruner("provence_rerank").select("q", chunks, 3)
+    assert sorted(kept) == [7, 8, 9]
+
+
+def test_provence_rerank_leaves_text_untouched(stub_provence, chunks):
+    """The reranker arm must stay content-matched against placebo_pos."""
+    p = get_pruner("provence_rerank")
+    kept = [c for c in chunks if c.idx in p.select("q", chunks, 3)]
+    assert [c.text for c in p.rewrite("q", kept)] == [c.text for c in kept]
+
+
+def test_provence_full_replaces_text_with_pruned(stub_provence, chunks):
+    p = get_pruner("provence_full")
+    kept = [c for c in chunks if c.idx in p.select("q", chunks, 3)]
+    out = p.rewrite("q", kept)
+    assert [c.text for c in out] == ["kept7", "", ""]   # 8 and 9 pruned to empty
+    assert [c.idx for c in out] == [c.idx for c in kept]
+
+
+def test_provence_full_keeps_emptied_chunks_in_place(stub_provence, chunks):
+    """A chunk pruned to nothing keeps its slot: dropping it would break the
+    keep-count match against placebo_pos, and an empty passage is what Provence
+    actually returns."""
+    p = get_pruner("provence_full")
+    kept = [c for c in chunks if c.idx in p.select("q", chunks, 3)]
+    assert len(p.rewrite("q", kept)) == 3
+
+
+def test_provence_runs_the_model_once_per_query(stub_provence, chunks):
+    """The result does not depend on the budget, but run.py visits each query
+    once per budget. Without caching the model would run three times over."""
+    p = get_pruner("provence_rerank")
+    for budget in (2, 3, 5):
+        p.select("q", chunks, budget)
+    assert stub_provence.calls == 1
+
+
+def test_provence_arms_share_one_model_load(stub_provence, chunks):
+    """1.74 GB twice would not fit alongside the generator on a 6 GB card."""
+    from src.prune import provence as mod
+    assert mod.ProvenceRerank().checkpoint == mod.ProvenceFull().checkpoint
+
+
+def test_rewrite_may_not_change_the_chunk_set(chunks):
+    from src.prune import validate_rewrite
+
+    with pytest.raises(ValueError, match="chunk count"):
+        validate_rewrite(chunks[:3], chunks[:2])
+    with pytest.raises(ValueError, match="reordered"):
+        validate_rewrite(chunks[:3], list(reversed(chunks[:3])))
+
+
+def test_default_rewrite_is_identity(chunks):
+    assert get_pruner("full").rewrite("q", chunks[:3]) == chunks[:3]
 
 
 def test_unknown_arm_raises():

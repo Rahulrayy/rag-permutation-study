@@ -80,7 +80,7 @@ with the week they are due — they never return fake data.
 | `src/generate.py` | **mostly** | `LocalGenerator` written and verified on GPU; `GroqGenerator` is a week-5 stub |
 | `src/prune/full,nocontext,random_drop,placebo_pos` | **done** | Includes the study's novel control |
 | `src/prune/rerank_topk` | stub | Week 2. Default OAE baseline arm |
-| `src/prune/provence` | stub | Week 2. **Verify the checkpoint loads early** — see §7 |
+| `src/prune/provence` | **done** | Two arms: `provence_rerank`, `provence_full`. Checkpoint verified |
 | `src/prune/llmlingua2` | stub | Week 2. Has an unresolved design question, see §7 |
 | `src/prune/llm_pruner` | stub | Week 2 |
 | `src/prune/loo_oracle` | stub | Week 3. Depends on `Generator.score`, which is verified working |
@@ -124,6 +124,15 @@ something has gone badly wrong — do not "fix" it by loosening the threshold.
 **The cache key is a pure function of what determines the output.** Never add
 query id, arm, or permutation index to it — many grid cells legitimately resolve
 to the same prompt, and they should share a cache entry.
+
+**Selection, rewriting and ordering are three separate steps.** `select()`
+answers *which* chunks (indices only), `rewrite()` answers *what text*, and
+`chunks.permute` answers *in what order*. `rewrite` is the identity for every
+arm except the compression methods, which is what keeps a matched-keep-count
+comparison against `placebo_pos` a comparison of selection alone. A pruner that
+folded rewriting into selection would make the two inseparable after the fact,
+exactly as one that folded in ordering would. `validate_rewrite` enforces that a
+rewrite changes text and nothing else.
 
 **Every arm honours its budget exactly.** `validate_selection` enforces it. A
 pruner quietly returning k+1 chunks breaks the matched-keep-count comparison
@@ -397,13 +406,20 @@ sentence-pruned `pruned_context`. Measured over 20 queries / 200 chunks / 40 gol
 | gold chunks pruned to **empty** | **11/40 (28%)** |
 | answer string lost entirely | **2/20 (10%)** |
 
-Its reranking is excellent and its pruning is brutal. `Pruner.select()` returns
-*indices*, so it can express the first but not the second: using Provence as
-published means chunk **content** changes, which is not something the current
-interface can carry, and it breaks content-matching against `placebo_pos` at
-equal k — the study's centerpiece. Plan Sec. 4.3 anticipates exactly this
-("report against input-token count, not k"), so this is a design decision to
-make and record, not a bug. **Undecided; blocks the `provence` arm.**
+Its reranking is excellent and its pruning is brutal.
+
+**Decided 2026-08-29: run both, as two arms.** `provence_rerank` selects top-k by
+score and keeps the original text, so it stays content-matched against
+`placebo_pos` at equal k. `provence_full` selects with the same scores and then
+replaces the text with Provence's pruned version — the method as published,
+reported against input-token count rather than k (plan Sec. 4.3). One model pass
+feeds both, so the only extra cost is generation.
+
+Their **difference isolates the sentence-pruning contribution with selection held
+fixed**, which is the decomposition this literature does not report. Verified on
+5 queries: selections identical across the two arms 15/15, with `provence_full`
+removing a further 70% of the text. Expect it to score badly — a method that
+deletes the answer in 10% of queries should. That is the finding.
 
 **How is a token-compressed context permuted?** `llmlingua2` compresses *within*
 chunks rather than selecting whole ones. Two consequences: a keep-k budget is not

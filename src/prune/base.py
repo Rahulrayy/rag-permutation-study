@@ -49,6 +49,34 @@ class Pruner(ABC):
         permutation protocol overwrites it.
         """
 
+    def rewrite(self, query: str, chunks: Sequence[Chunk]) -> list[Chunk]:
+        """Optionally rewrite the *content* of the kept chunks. Identity by default.
+
+        Selection, rewriting and ordering are three separate steps, and keeping
+        them separate is the same discipline that keeps selection apart from
+        ordering (see the module docstring). ``select`` answers *which* chunks,
+        this answers *what text*, and ``chunks.permute`` answers *in what order*.
+
+        Only compression methods override this -- Provence prunes sentences
+        within a chunk, LLMLingua-2 compresses tokens. For every other arm the
+        content is exactly what the dataset shipped, which is what makes a
+        matched-keep-count comparison against `placebo_pos` a comparison of
+        selection alone.
+
+        Implementations must return the same chunks, in the same order, with
+        the same ``idx`` values. Only ``text`` may change. ``validate_rewrite``
+        enforces it.
+        """
+        return list(chunks)
+
+    def close(self) -> None:
+        """Release any model this pruner holds. Called once after selection.
+
+        Provence is 1.74 GB and the generator is another 2.06 GB. On a 6 GB
+        card that is the difference between fitting and not, and the pruner is
+        finished with long before the first generation runs.
+        """
+
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
         if getattr(cls, "name", "base") != "base":
@@ -87,6 +115,27 @@ def parse_arm(name: str) -> tuple[str, str | None]:
     """
     base, sep, variant = name.partition(VARIANT_SEP)
     return base, (variant if sep else None)
+
+
+def validate_rewrite(
+    original: Sequence[Chunk],
+    rewritten: Sequence[Chunk],
+) -> list[Chunk]:
+    """A rewrite may change text and nothing else.
+
+    Silently dropping or reordering a chunk here would break the keep-count
+    match against `placebo_pos` and quietly re-introduce the ordering effect
+    the permutation protocol exists to control.
+    """
+    if len(rewritten) != len(original):
+        raise ValueError(
+            f"rewrite changed the chunk count: {len(original)} -> {len(rewritten)}"
+        )
+    before = [c.idx for c in original]
+    after = [c.idx for c in rewritten]
+    if before != after:
+        raise ValueError(f"rewrite reordered or renumbered chunks: {before} -> {after}")
+    return list(rewritten)
 
 
 def get_pruner(name: str, **kwargs: object) -> Pruner:

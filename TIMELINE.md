@@ -26,7 +26,7 @@ and stranger than 0.0263 suggests.
 
 ```
 week 1  #####################  DONE, gate PASSED 0.0263
-week 2  ....................  4 pruner arms, register the analysis plan
+week 2  #####...............  provence done; 3 arms + registration left
 week 3  ....................  LOO oracle, memorization filter, lit re-check
 week 4  ....................  main run n=300, bootstrap
 week 5  ....................  2WikiMultihopQA + Groq replication
@@ -163,8 +163,10 @@ exactly 50%.
 
 Ordered by risk, not convenience:
 
-- [ ] **`provence` first** — checkpoint availability is the assumption most
-      likely to blow up, and the gate is "verify it loads in week 2, not week 5"
+- [x] **`provence`** — checkpoint verified loadable (the assumption plan Sec. 8
+      calls most likely to blow up), and implemented as **two** arms:
+      `provence_rerank` (selection only, content-matched) and `provence_full`
+      (as published, sentence-pruned). License is `cc-by-nc-nd-4.0`
 - [ ] `rerank_topk` — the OAE denominator arm; nothing else is interpretable
       without it
 - [ ] `llm_pruner` — watch for it returning more than `budget` indices, and for
