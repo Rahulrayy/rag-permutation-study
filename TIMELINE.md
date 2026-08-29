@@ -26,7 +26,7 @@ and stranger than 0.0263 suggests.
 
 ```
 week 1  #####################  DONE, gate PASSED 0.0263
-week 2  ##################..  all 4 arms done; registration left
+week 2  #####################  DONE, plan REGISTERED 2c14be0
 week 3  ....................  LOO oracle, memorization filter, lit re-check
 week 4  ....................  main run n=300, bootstrap
 week 5  ....................  2WikiMultihopQA + Groq replication
@@ -113,6 +113,32 @@ Batch 4 ran but starved the laptop compositor and cut the monitor out. Added
 dropped `batch_size` to 2. The stopped pilot lost nothing: 224 of 500
 generations were already banked and replayed.
 
+### 2026-08-29 — Week 2: four arms, and the plan registered
+
+`provence_rerank` / `provence_full` / `rerank_topk` / `llm_pruner` /
+`llmlingua2` implemented and tested. Two findings the plan did not anticipate,
+both of them the study's thesis reaching *inside* a method rather than at its
+output:
+
+- **`llm_pruner`'s selection is mostly a function of presentation order.**
+  Jaccard 0.263 across three presentations, against 1.000 for an
+  order-invariant selector and 0.048 for chance. The selection changed in 19 of
+  20 queries.
+- **LLMLingua-2's joint compression is order-dependent in 100/100 chunks.**
+  Measured before choosing the design, and the reason the arm compresses per
+  chunk. It is a deterministic token classifier, which makes this the more
+  surprising of the two.
+
+`ANALYSIS_PLAN.md` **registered** at `2c14be0`, against code `d4ba648`, before
+any main-run generation existed.
+
+Also measured, closing the biggest open risk: **memorization is low.** Only
+10/100 queries are answerable with no passages at all (mean no-context F1
+0.115), so the filter keeps 90% rather than gutting the analysis population.
+On that filtered set the pilot's median within-query SD is **0.1209**, not the
+knife-edge 0.0263 — though both are boundary artifacts of the same bimodal
+distribution, and neither is the real finding.
+
 ### 2026-08-29 — **Week-1 gate: PASS**
 
 ```
@@ -159,7 +185,7 @@ exactly 50%.
 - [x] Pilot — 100 queries x 5 permutations, 500 rows
 - [x] Gate — **PASS at 0.0263**, committed
 
-### Week 2 — the remaining arms, and registration
+### Week 2 — DONE
 
 Ordered by risk, not convenience:
 
@@ -179,10 +205,13 @@ Ordered by risk, not convenience:
 - [x] `llmlingua2` — the design question is settled and recorded: compress per
       chunk (**joint compression made content order-dependent in 100/100 chunks**),
       spend the budget as a rate not a keep-count, permute chunk-level units
-- [ ] Fill the `ANALYSIS_PLAN.md` TODOs: primary endpoint, `nocontext`
-      correctness definition, Holm family definition, H2/H3 thresholds,
-      remaining exclusions, and confirm the placebo comparator
-- [ ] **Register** — record the commit SHA and date in `ANALYSIS_PLAN.md` Sec. 8
+- [x] `ANALYSIS_PLAN.md` TODOs all filled — primary endpoint (Placebo Gap),
+      `nocontext` correctness (token-F1 >= 0.8), Holm family (one family of
+      nine), H2 (OAE < 0.5) and H3 (RFR > 0.10), exclusions (none, all four
+      candidates measured at zero), placebo comparator confirmed
+- [x] **REGISTERED 2026-08-29**, commit `2c14be0`, against code `d4ba648`, with
+      no main-run data in existence — only the week-1 pilot and its `nocontext`
+      companion. No pruner arm had produced a generation
 
 Gate: all arms produce sane output on 20 queries.
 

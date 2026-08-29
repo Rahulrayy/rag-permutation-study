@@ -390,7 +390,12 @@ one.
   selection; it is a confound worth reporting.
 - **`llmlingua2` last** — it has an open design question, below.
 
-**4. Week 2: finish `ANALYSIS_PLAN.md`.** Remaining `TODO`s: the primary endpoint,
+**4. ~~Week 2: finish `ANALYSIS_PLAN.md`.~~ DONE — registered 2026-08-29 at
+`2c14be0`, against code `d4ba648`, with no main-run data in existence. Do not
+edit the confirmatory sections again; anything decided from here goes in Sec. 9
+as a deviation or as exploratory.**
+
+*(original note follows)* Remaining `TODO`s: the primary endpoint,
 the `nocontext` correctness definition, the Holm family definition, and the H2/H3
 thresholds. Then register: record the commit SHA and date in its §8. The plan
 calls this "the single most credible thing in the whole project" and it costs an
