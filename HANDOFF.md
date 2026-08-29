@@ -374,6 +374,37 @@ generations.
 
 ## 8. Open questions
 
+**Provence loads — and is two methods in one, which the interface cannot express.**
+Verified 2026-08-29 (plan Sec. 8's riskiest assumption, cleared in week 2 as
+required). `naver/provence-reranker-debertav3-v1`, public, ungated, 435M params,
+1.74 GB, needs `trust_remote_code=True` and `nltk`. **License is
+`cc-by-nc-nd-4.0`** — non-commercial, no-derivatives. Fine for a research or
+portfolio artifact, but it must be stated in the write-up, and it rules the
+checkpoint out of any commercial use.
+
+`process()` returns *both* a `reranking_score` per chunk *and* a
+sentence-pruned `pruned_context`. Measured over 20 queries / 200 chunks / 40 gold:
+
+| As a reranker | |
+|---|---|
+| top-1 chunk is gold | **20/20 (100%)** |
+| mean rank of a gold chunk | 2.02 of 10 |
+| both gold in top-3 | 14/20 |
+
+| As a sentence pruner (threshold 0.1) | |
+|---|---|
+| text kept overall | **11.2%** |
+| gold chunks pruned to **empty** | **11/40 (28%)** |
+| answer string lost entirely | **2/20 (10%)** |
+
+Its reranking is excellent and its pruning is brutal. `Pruner.select()` returns
+*indices*, so it can express the first but not the second: using Provence as
+published means chunk **content** changes, which is not something the current
+interface can carry, and it breaks content-matching against `placebo_pos` at
+equal k — the study's centerpiece. Plan Sec. 4.3 anticipates exactly this
+("report against input-token count, not k"), so this is a design decision to
+make and record, not a bug. **Undecided; blocks the `provence` arm.**
+
 **How is a token-compressed context permuted?** `llmlingua2` compresses *within*
 chunks rather than selecting whole ones. Two consequences: a keep-k budget is not
 comparable across arms (plan Sec. 4.3 handles this — report against input-token

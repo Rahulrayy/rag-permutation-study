@@ -23,6 +23,10 @@ sentencepiece>=0.2
 
 # Rerank baseline / Provence (week 2)
 sentence-transformers>=3.0
+# Provence's remote code imports nltk for sentence splitting and will refuse to
+# load without it. It also needs the punkt + punkt_tab tokenizer data:
+#   python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')"
+nltk>=3.8
 
 # Cross-generator check (week 5)
 groq>=0.11
