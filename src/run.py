@@ -22,7 +22,7 @@ import yaml
 
 from .cache import GenerationCache
 from .chunks import keep, permutation_set
-from .data import iter_cells, load_dataset, memorization_filter
+from .data import load_dataset, memorization_filter
 from .generate import (
     ALT_TEMPLATE,
     DEFAULT_TEMPLATE,
@@ -155,63 +155,80 @@ def run(cfg: Config) -> Path:
     # hypotheses about where this generator's position bias lives and are
     # reported separately; averaging them would answer none of the three.
     arms = expand_arms([a for a in cfg["arms"] if a != "nocontext"])
-    cells = list(iter_cells(examples, arms, cfg["budgets"]))
-    print(f"{len(cells)} cells x {len(perm_cfg['strategies'])} permutations")
+    budgets = list(cfg["budgets"])
+    n_cells = len(examples) * len(arms) * len(budgets)
+    print(f"{n_cells} cells x {len(perm_cfg['strategies'])} permutations")
 
     # Batch across the whole grid, not per cell: an 8-wide batch of 5-permutation
     # cells would otherwise waste most of every batch.
     pending_prompts: list[str] = []
     pending_meta: list[tuple[Any, str, int, int, str, list[int], list[int]]] = []
 
-    # Construct each arm once: pruners can hold a loaded model (rerank_topk,
-    # provence), and rebuilding one per (query, budget) cell would reload it
-    # thousands of times. arm_params are keyed by base name, so all three
-    # placebo variants share one entry.
-    pruners = {
-        arm: get_pruner(arm, **(arm_params.get(parse_arm(arm)[0], {}) or {}))
-        for arm in arms
-    }
+    # Arm-major, not query-major. Each pruner is constructed, used for every
+    # query, then closed before the next one is built, so at most one pruner
+    # model is resident at a time -- Provence alone is 1.74 GB against the
+    # generator's 2.06 GB on a 6 GB card. (Arms that share the run's generator
+    # are listed after the ones holding their own weights in the shipped
+    # configs; if that is ever reordered, the VRAM cap turns the overlap into a
+    # clean OOM rather than a display crash.) Constructing once per arm also
+    # matters on its own: rebuilding per cell would reload a checkpoint
+    # thousands of times.
+    arm_stats: dict[str, Any] = {}
 
-    for ex, arm, budget in cells:
-        pruner = pruners[arm]
-        selected = pruner.select(ex.question, ex.chunks, budget)
-        kept_chunks = keep(ex.chunks, selected)
-        # Third step, separate from selection and ordering: compression methods
-        # rewrite chunk *content* (Provence prunes sentences). Identity for
-        # every other arm. See prune.base.Pruner.rewrite.
-        kept_chunks = pruner.rewrite(ex.question, kept_chunks)
+    for arm in arms:
+        # arm_params are keyed by base name, so all three placebo variants and
+        # both provence variants share one entry.
+        pruner = get_pruner(arm, **(arm_params.get(parse_arm(arm)[0], {}) or {}))
+        if getattr(pruner, "needs_generator", False):
+            # llm_pruner asks the study's own generator which chunks to keep,
+            # so its selection calls go through the same cache as everything
+            # else and replay for free on a rerun.
+            pruner.attach(generator, params)
 
-        orderings = permutation_set(
-            kept_chunks,
-            perm_cfg["strategies"],
-            seed=perm_cfg.get("seed", 20260828),
-            # Per-query, so the three random draws are not one shared trio
-            # reused for the whole dataset. See chunks.permute.
-            key=ex.qid,
-        )
-        for perm_idx, ordering in enumerate(orderings):
-            prompt = build_prompt(ex.question, ordering, template)
-            pending_prompts.append(prompt)
-            pending_meta.append(
-                (
-                    ex,
-                    arm,
-                    budget,
-                    perm_idx,
-                    perm_cfg["strategies"][perm_idx],
-                    selected,
-                    [c.idx for c in ordering],
-                    # Arms compress at different granularities, so keep-k is not
-                    # a common currency across them (plan Sec. 4.3). Recorded at
-                    # generation time because it cannot be reconstructed later
-                    # once the rewritten text is gone.
-                    sum(len(c.text) for c in ordering),
-                )
+        for ex in examples:
+          for budget in budgets:
+            selected = pruner.select(ex.question, ex.chunks, budget)
+            kept_chunks = keep(ex.chunks, selected)
+            # Third step, separate from selection and ordering: compression
+            # methods rewrite chunk *content* (Provence prunes sentences).
+            # Identity for every other arm. See prune.base.Pruner.rewrite.
+            kept_chunks = pruner.rewrite(ex.question, kept_chunks)
+
+            orderings = permutation_set(
+                kept_chunks,
+                perm_cfg["strategies"],
+                seed=perm_cfg.get("seed", 20260828),
+                # Per-query, so the three random draws are not one shared trio
+                # reused for the whole dataset. See chunks.permute.
+                key=ex.qid,
             )
+            for perm_idx, ordering in enumerate(orderings):
+                pending_prompts.append(build_prompt(ex.question, ordering, template))
+                pending_meta.append(
+                    (
+                        ex,
+                        arm,
+                        budget,
+                        perm_idx,
+                        perm_cfg["strategies"][perm_idx],
+                        selected,
+                        [c.idx for c in ordering],
+                        # Arms compress at different granularities, so keep-k is
+                        # not a common currency across them (plan Sec. 4.3).
+                        # Recorded at generation time because it cannot be
+                        # reconstructed later once the rewritten text is gone.
+                        sum(len(c.text) for c in ordering),
+                    )
+                )
 
-    # Pruners are done. Provence is 1.74 GB and the generator needs 2.06 GB on a
-    # 6 GB card, so hand the VRAM back before the first generation runs.
-    for pruner in pruners.values():
+        # Repair counters, where an arm keeps them. llm_pruner records how often
+        # the model named too many passages or too few; an arm that failed to
+        # name k in a large fraction of cells is not the arm it claims to be, so
+        # this is reported rather than buried.
+        stats = getattr(pruner, "stats", None)
+        if stats is not None:
+            arm_stats[arm] = stats.as_dict()
+            print(f"  {arm}: {arm_stats[arm]}")
         pruner.close()
 
     generations = generator.generate_batch(pending_prompts, params)
@@ -238,6 +255,14 @@ def run(cfg: Config) -> Path:
         writer.writeheader()
         writer.writerows(rows)
     print(f"wrote {len(rows)} rows -> {out_path}")
+
+    if arm_stats:
+        stats_path = out_dir / "arm_stats.json"
+        with open(stats_path, "w", encoding="utf-8") as fh:
+            json.dump(arm_stats, fh, indent=2, sort_keys=True)
+            fh.write(chr(10))
+        print(f"wrote arm repair counters -> {stats_path}")
+
     return out_path
 
 

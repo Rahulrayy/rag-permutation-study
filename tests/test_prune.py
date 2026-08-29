@@ -9,7 +9,7 @@ from src.prune.base import validate_selection
 
 IMPLEMENTED = [
     "full", "nocontext", "random_drop", "placebo_pos",
-    "provence_rerank", "provence_full", "rerank_topk",
+    "provence_rerank", "provence_full", "rerank_topk", "llm_pruner",
 ]
 
 
@@ -312,3 +312,114 @@ def test_rerank_does_not_rewrite_content(stub_reranker, chunks):
     p = get_pruner("rerank_topk")
     kept = [c for c in chunks if c.idx in p.select("q", chunks, 3)]
     assert p.rewrite("q", kept) == kept
+
+
+# --------------------------------------------------------------------------- #
+# llm_pruner. The arm whose *selection* may depend on the order it was shown,
+# and the only one that has to repair a malformed reply without quietly
+# changing what the arm is.
+# --------------------------------------------------------------------------- #
+
+class _ScriptedGenerator:
+    """Returns canned replies, so parsing and repair are tested without a GPU."""
+
+    model = "scripted"
+
+    def __init__(self, *replies):
+        self.replies, self.prompts = list(replies), []
+
+    def generate(self, prompt, params):
+        self.prompts.append(prompt)
+        from src.cache import CachedGeneration
+        return CachedGeneration(text=self.replies.pop(0) if self.replies else "")
+
+
+def _pruner(*replies, **kw):
+    from src.generate import DecodeParams
+    from src.prune.llm_pruner import LLMPruner
+
+    p = LLMPruner(**kw)
+    gen = _ScriptedGenerator(*replies)
+    p.attach(gen, DecodeParams())
+    return p, gen
+
+
+def test_llm_pruner_parses_a_comma_separated_reply(chunks):
+    p, _ = _pruner("2, 5, 9")
+    assert p.select("q", chunks, 3) == [1, 4, 8]     # 1-indexed reply -> idx
+    assert p.stats.under_selected == 0
+
+
+def test_llm_pruner_truncates_over_selection(chunks):
+    """validate_selection would raise; the arm repairs and counts instead."""
+    p, _ = _pruner("1, 2, 3, 4, 5, 6")
+    assert p.select("q", chunks, 3) == [0, 1, 2]
+    assert p.stats.over_selected == 1
+
+
+def test_llm_pruner_fills_under_selection_to_keep_the_budget_matched(chunks):
+    """An arm quietly returning k-1 is no longer matched against placebo_pos,
+    which is the study's centerpiece."""
+    p, _ = _pruner("7")
+    kept = p.select("q", chunks, 3)
+    assert len(kept) == 3
+    assert 6 in kept                      # the model's pick is honoured
+    assert p.stats.under_selected == 1
+
+
+def test_llm_pruner_handles_an_unparseable_reply(chunks):
+    p, _ = _pruner("I cannot help with that.")
+    assert len(p.select("q", chunks, 3)) == 3
+    assert p.stats.unparseable == 1 and p.stats.under_selected == 1
+
+
+def test_llm_pruner_ignores_out_of_range_numbers(chunks):
+    p, _ = _pruner("3, 47, 5")
+    kept = p.select("q", chunks, 3)
+    assert 2 in kept and 4 in kept
+    assert p.stats.out_of_range == 1
+
+
+def test_llm_pruner_maps_numbers_through_the_presented_order(chunks):
+    """Reply numbers index the order the model was SHOWN, not chunk.idx. With
+    reverse presentation, "1" is the last chunk by rank."""
+    p, _ = _pruner("1", selection_order="reverse")
+    assert 9 in p.select("q", chunks, 1)
+
+
+def test_llm_pruner_selection_stays_greedy(chunks):
+    """Sampling here would put sampling noise inside the independent variable."""
+    p, _ = _pruner("1, 2, 3")
+    assert p._params.do_sample is False
+    assert p._params.temperature == 0.0
+    assert p._params.max_new_tokens == 64      # more room than an answer needs
+
+
+def test_llm_pruner_without_a_generator_says_so(chunks):
+    from src.prune.llm_pruner import LLMPruner
+
+    with pytest.raises(RuntimeError, match="no generator"):
+        LLMPruner().select("q", chunks, 3)
+
+
+def test_llm_pruner_caches_per_query_and_budget(chunks):
+    p, gen = _pruner("1, 2, 3")
+    p.select("q", chunks, 3)
+    p.select("q", chunks, 3)
+    assert len(gen.prompts) == 1
+
+
+def test_selection_stability_detects_order_dependence(chunks):
+    """The study's thesis, applied to the pruner: if selection moves with
+    presentation order, a published LLM-pruner result is one draw from a
+    distribution its paper does not mention."""
+    from src.prune.llm_pruner import selection_stability
+
+    # same reply "1,2,3" under every presentation -> different chunks each time
+    p, _ = _pruner("1,2,3", "1,2,3", "1,2,3")
+    out = selection_stability(p, "q", chunks, 3, orders=("rank", "reverse"))
+    assert out["jaccard"] < 1.0 and out["stable"] is False
+
+    p2, _ = _pruner("1,2,3", "3,2,1")
+    same = selection_stability(p2, "q", chunks, 3, orders=("rank", "rank"))
+    assert same["jaccard"] == 1.0 and same["stable"] is True

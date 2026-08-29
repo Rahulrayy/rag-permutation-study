@@ -235,6 +235,21 @@ varied instruction wording too, which would have confounded the Sec. 8 delimiter
 robustness check with the verbosity effect above. An `assert` at import time
 enforces the isolation.
 
+**An LLM pruner's *selection* is mostly a function of presentation order.**
+Measured 2026-08-29, Qwen2.5-3B-Instruct, 20 queries, k=3, greedy. Show it the
+same ten passages in a different order and it picks largely different ones:
+Jaccard across as-given / reverse / random presentations is **0.263**, against
+**1.000** for any selector that scores chunks independently (`rerank_topk`,
+`provence`) and **0.048** for three random 3-subsets. **The selection changed in
+19 of 20 queries** — only ~23% of the way from a random redraw to being
+content-determined. Gold recall 72% at k=3 (vs 90% `rerank_topk`, 85%
+`provence_rerank`), and it failed to name three passages at all in 10% of cells.
+
+This is the study's thesis landing on the pruner rather than the answer, and it
+is a stronger version of it: every published LLM-pruner result is one draw from
+a distribution over selections that its paper does not mention. Reproduce with
+`prune.llm_pruner.selection_stability`. Worth its own figure in week 6.
+
 **The LOO oracle has signal, but far less than first recorded.** This file
 previously reported `logP(answer | all 10 paragraphs) = -1.271` versus `-13.647`
 with the gold paragraphs removed, a 12.4-nat drop. **Those numbers do not

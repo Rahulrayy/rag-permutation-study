@@ -131,6 +131,14 @@ protocol deviation and goes in Sec. 9.
 ## 7. Robustness checks (planned, not exploratory)
 
 - Prompt-template variant, one alternative delimiter style (plan Sec. 8).
+- **LLM-pruner selection stability.** `llm_pruner` is the only arm that sees all
+  ten passages at once, so its *selection* can depend on the order it was shown,
+  where `rerank_topk` and `provence` score chunks independently and cannot.
+  Report selection Jaccard across as-given / reverse / random presentations,
+  against two reference points: 1.000 for an order-invariant selector and the
+  chance value for k random subsets. Pilot at n=20, k=3 gave **0.263** with the
+  selection changing in 19/20 queries. The confirmatory run uses the registered
+  n and the same three presentations. `prune.llm_pruner.selection_stability`.
 - 2WikiMultihopQA replication.
 - Groq cross-generator replication, n=100.
 

@@ -26,7 +26,7 @@ and stranger than 0.0263 suggests.
 
 ```
 week 1  #####################  DONE, gate PASSED 0.0263
-week 2  ##########..........  provence + rerank done; 2 arms + registration
+week 2  ###############.....  3 arms done; llmlingua2 + registration left
 week 3  ....................  LOO oracle, memorization filter, lit re-check
 week 4  ....................  main run n=300, bootstrap
 week 5  ....................  2WikiMultihopQA + Groq replication
@@ -171,8 +171,11 @@ Ordered by risk, not convenience:
       k=2/3/5 on 20 queries, so the denominator rests on a baseline that
       actually retrieves. Built on plain transformers rather than
       sentence-transformers, to avoid pip touching the cu128 torch build
-- [ ] `llm_pruner` — watch for it returning more than `budget` indices, and for
-      the *selection prompt itself* being order-sensitive. Log the ordering used
+- [x] `llm_pruner` — and the order-sensitivity worry was justified. Selection
+      Jaccard across three presentations is **0.263** (1.000 = order-invariant,
+      0.048 = chance); **the selection changed in 19/20 queries**. Over- and
+      under-selection are repaired deterministically and counted, not swallowed:
+      it failed to name k passages in 10% of cells
 - [ ] `llmlingua2` last — it has an unresolved design question (below)
 - [ ] Fill the `ANALYSIS_PLAN.md` TODOs: primary endpoint, `nocontext`
       correctness definition, Holm family definition, H2/H3 thresholds,
