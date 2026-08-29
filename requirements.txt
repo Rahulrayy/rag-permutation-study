@@ -22,7 +22,11 @@ bitsandbytes>=0.43
 sentencepiece>=0.2
 
 # Rerank baseline / Provence (week 2)
-sentence-transformers>=3.0
+# NOT sentence-transformers: a cross-encoder is an
+# AutoModelForSequenceClassification with one output logit, which is exactly
+# what sentence_transformers.CrossEncoder wraps. Taking the dependency risks pip
+# resolving a PyPI torch over the cu128 build this environment needs (HANDOFF
+# Sec. 6) for no benefit. src/prune/rerank_topk.py uses transformers directly.
 # Provence's remote code imports nltk for sentence splitting and will refuse to
 # load without it. It also needs the punkt + punkt_tab tokenizer data:
 #   python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')"

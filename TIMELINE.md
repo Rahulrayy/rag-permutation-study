@@ -26,7 +26,7 @@ and stranger than 0.0263 suggests.
 
 ```
 week 1  #####################  DONE, gate PASSED 0.0263
-week 2  #####...............  provence done; 3 arms + registration left
+week 2  ##########..........  provence + rerank done; 2 arms + registration
 week 3  ....................  LOO oracle, memorization filter, lit re-check
 week 4  ....................  main run n=300, bootstrap
 week 5  ....................  2WikiMultihopQA + Groq replication
@@ -167,8 +167,10 @@ Ordered by risk, not convenience:
       calls most likely to blow up), and implemented as **two** arms:
       `provence_rerank` (selection only, content-matched) and `provence_full`
       (as published, sentence-pruned). License is `cc-by-nc-nd-4.0`
-- [ ] `rerank_topk` — the OAE denominator arm; nothing else is interpretable
-      without it
+- [x] `rerank_topk` — the OAE denominator arm. Gold recall 75/90/98% at
+      k=2/3/5 on 20 queries, so the denominator rests on a baseline that
+      actually retrieves. Built on plain transformers rather than
+      sentence-transformers, to avoid pip touching the cu128 torch build
 - [ ] `llm_pruner` — watch for it returning more than `budget` indices, and for
       the *selection prompt itself* being order-sensitive. Log the ordering used
 - [ ] `llmlingua2` last — it has an unresolved design question (below)

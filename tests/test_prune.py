@@ -9,7 +9,7 @@ from src.prune.base import validate_selection
 
 IMPLEMENTED = [
     "full", "nocontext", "random_drop", "placebo_pos",
-    "provence_rerank", "provence_full",
+    "provence_rerank", "provence_full", "rerank_topk",
 ]
 
 
@@ -223,3 +223,92 @@ def test_unknown_variant_fails_at_construction(chunks):
 def test_variant_suffix_rejected_on_arms_without_variants():
     with pytest.raises(ValueError, match="variant suffix"):
         get_pruner("full:something")
+
+
+# --------------------------------------------------------------------------- #
+# rerank_topk. Stubbed like Provence: this is the OAE denominator arm, so its
+# *contract* matters more than the checkpoint's quality, and the suite must
+# stay offline and fast.
+# --------------------------------------------------------------------------- #
+
+class _StubCrossEncoder:
+    """Returns one relevance logit per (query, passage) pair, like the real one."""
+
+    def __init__(self, scores):
+        self.scores, self.calls, self.seen_pairs = scores, 0, None
+
+    def __call__(self, queries, passages, **kw):
+        self.calls += 1
+        self.seen_pairs = list(zip(queries, passages))
+        return self.scores
+
+
+@pytest.fixture
+def stub_reranker(monkeypatch):
+    import torch
+
+    from src.prune import rerank_topk as mod
+
+    stub = _StubCrossEncoder(None)
+
+    class _Tok:
+        def __call__(self, queries, passages, **kw):
+            stub.calls += 1
+            stub.seen_pairs = list(zip(queries, passages))
+            return _Enc()
+
+    class _Enc(dict):
+        """Real tokenizer output is a dict-like BatchEncoding, so `model(**enc)`
+        works. A plain object would not unpack."""
+
+        def to(self, device):
+            return self
+
+    class _Model:
+        device = "cpu"
+
+        def __call__(self, **enc):
+            n = len(stub.seen_pairs)
+            # ascending relevance with index, so top-k is unambiguous
+            return type("O", (), {"logits": torch.arange(n, dtype=torch.float).unsqueeze(-1)})
+
+    monkeypatch.setattr(mod, "_load", lambda model, device: (_Tok(), _Model()))
+    monkeypatch.setattr(mod, "unload_all", lambda: None)
+    return stub
+
+
+def test_rerank_selects_top_k(stub_reranker, chunks):
+    """Stub scores ascend with index, so the top 3 are chunks 9, 8, 7."""
+    assert get_pruner("rerank_topk").select("q", chunks, 3) == [7, 8, 9]
+
+
+def test_rerank_scores_title_and_text(stub_reranker, chunks):
+    """Titles carry real signal on HotpotQA -- the answer is often the title of
+    a gold paragraph -- and are part of what the generator is shown."""
+    get_pruner("rerank_topk").select("who?", chunks, 3)
+    q, passage = stub_reranker.seen_pairs[0]
+    assert q == "who?"
+    assert passage.startswith("title0: ")
+
+
+def test_rerank_runs_the_model_once_per_query(stub_reranker, chunks):
+    """Scores do not depend on the budget; run.py visits each query per budget."""
+    p = get_pruner("rerank_topk")
+    for budget in (2, 3, 5):
+        p.select("q", chunks, budget)
+    assert stub_reranker.calls == 1
+
+
+def test_rerank_selection_order_carries_no_meaning(stub_reranker, chunks):
+    """Returning score order would invite someone downstream to read it as the
+    reranker's ranking -- the selection/ordering conflation this study is about."""
+    assert get_pruner("rerank_topk").select("q", chunks, 4) == sorted(
+        get_pruner("rerank_topk").select("q", chunks, 4)
+    )
+
+
+def test_rerank_does_not_rewrite_content(stub_reranker, chunks):
+    """Selection-only: it must stay content-matched against placebo_pos."""
+    p = get_pruner("rerank_topk")
+    kept = [c for c in chunks if c.idx in p.select("q", chunks, 3)]
+    assert p.rewrite("q", kept) == kept

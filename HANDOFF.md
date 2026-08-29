@@ -79,7 +79,7 @@ with the week they are due — they never return fake data.
 | `src/smoke.py` | **done** | Six-point GPU check; run before any long job |
 | `src/generate.py` | **mostly** | `LocalGenerator` written and verified on GPU; `GroqGenerator` is a week-5 stub |
 | `src/prune/full,nocontext,random_drop,placebo_pos` | **done** | Includes the study's novel control |
-| `src/prune/rerank_topk` | stub | Week 2. Default OAE baseline arm |
+| `src/prune/rerank_topk` | **done** | Default OAE baseline arm. Plain transformers, no sentence-transformers |
 | `src/prune/provence` | **done** | Two arms: `provence_rerank`, `provence_full`. Checkpoint verified |
 | `src/prune/llmlingua2` | stub | Week 2. Has an unresolved design question, see §7 |
 | `src/prune/llm_pruner` | stub | Week 2 |
