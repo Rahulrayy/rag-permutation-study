@@ -264,8 +264,10 @@ pip install torch --index-url https://download.pytorch.org/whl/cu128
 pip install -r requirements.txt
 ```
 
-**This machine is display-limited, not OOM-limited.** `batch_size` is **1**,
-`batch_pause_s` **0.25**, `max_vram_fraction` **0.5**, in both configs.
+**The display crashes were TDR, and TDR is now fixed at the root.**
+`TdrDelay` is raised to 10s machine-wide (from the Windows default of 2s), so
+long kernels no longer get the display driver reset out from under them.
+`batch_size` is **4**, `batch_pause_s` **0.1**, `max_vram_fraction` **0.7**.
 
 The history matters, because this took three attempts to pin down and the first
 two diagnoses were wrong. Batch 5 reached 5.9 GB of 6.4 GB in the smoke test and
@@ -280,16 +282,24 @@ recover). The monitor blanks and comes back, and **nothing surfaces on the Pytho
 side** — the run carries on. So a VRAM cap alone cannot fix it: the problem is
 how long a single kernel holds the GPU, not how much it allocates.
 
-Three levers, all of which only cost wall-clock:
+Raising `TdrDelay` to 10s (below) fixed the cause. With that in place the config
+was re-benchmarked on 8 real prompts (median 1,520 tokens):
 
-| Setting | Value | What it does |
+| batch | s/gen | peak VRAM |
 |---|---|---|
-| `batch_size` | 1 | shorter kernels, so none blocks the display for 2s |
-| `batch_pause_s` | 0.25 | hands the GPU back to the compositor between batches |
-| `max_vram_fraction` | 0.5 | ~3.2 GB cap; an overrun is a clean CUDA OOM |
+| 1 | 1.08 | 2.66 GB |
+| 2 | 0.82 | 2.50 GB |
+| **4** | **0.78** | **2.91 GB** |
+| 8 | 0.72 | 3.75 GB |
 
-Roughly 3-4x slower than batch 4. Worth it for a machine you also have to look
-at. **Recovery is cheap either way** — see §9 on the cache.
+**Batching buys much less here than intuition suggests: 1.5x from batch 1 to 8,
+and almost all of it by batch 2.** Batch 4 takes ~92% of the available speedup
+for 0.84 GB less peak than batch 8, the better trade on a GPU that also drives
+the screen. Two earlier claims in this section were wrong and are corrected here:
+batch 8 does **not** OOM (peak 3.75 GB of 6.14), and batch 1 is not "3-4x slower"
+than batch 4 — it is 1.4x.
+
+**Recovery is cheap either way** — see §9 on the cache.
 
 Also fixed here: `LocalGenerator.score` was materialising logits for every
 position, `(1, 1555, 151936)` = **472 MB in one allocation**, the largest single
@@ -297,11 +307,15 @@ spike in the codebase. It now passes `logits_to_keep`, since only the answer
 positions are ever read. Verified identical to 1e-4 on both the with-gold and
 without-gold prompts.
 
-**If the display still drops**, the remaining options are `batch_pause_s: 0.5`,
-then raising `TdrDelay` to 8-10s in
-`HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers` — that one is a
-system-wide registry change needing admin and a reboot, so it is a decision for
-the machine's owner, not something to do casually.
+**`TdrDelay` was raised to 10s and `TdrDdiDelay` to 20s** under `HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers` on
+2026-08-29, with a reboot; verified live. `TdrLevel` was deliberately left unset
+(Windows default 3, detect and recover) — setting it to 0 disables the watchdog
+entirely and turns a hung GPU into a hard power cycle. Apply/revert files sit at
+`C:\Users\rahul\tdr-raise.reg` and `tdr-revert.reg`.
+
+This is machine-wide and travels with the machine, not the repo. **On any other
+machine expect the 2-second default, and the display crashes to return.** The
+per-project levers above are what keep the project safe without it.
 
 **Keep the HuggingFace cache out of the project directory.** This repo lives under
 `OneDrive\Desktop\...`. An early default put the HF cache at `./hf_cache`, and 1.5

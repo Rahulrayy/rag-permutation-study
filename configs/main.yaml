@@ -18,23 +18,28 @@ generator:
   temperature: 0.0
   do_sample: false
   seed: 20260828
-  # 6.4 GB VRAM, and the laptop display runs off the same GPU. This machine is
-  # display-limited, not OOM-limited: batch 5 reached 5.9 GB in the smoke test,
-  # but batch 4 and then batch 2 both blanked the monitor long before that.
-  # Windows TDR is at its 2s default, so a kernel that holds the GPU too long
-  # gets the display driver reset out from under it -- a latency problem as much
-  # as a memory one.
+  # 6.4 GB VRAM, and the laptop display runs off the same GPU. The monitor
+  # blanking during runs was Windows TDR resetting the display driver, not an
+  # OOM; TdrDelay is now raised to 10s machine-wide, which fixed it at the root.
   #
-  # Batch 1 keeps each kernel short; the pause hands the GPU back to the
-  # compositor between batches. Both cost only wall-clock. Roughly 3-4x slower
-  # than batch 4, which is a trade worth making for a machine you also have to
-  # look at.
-  batch_size: 1
-  batch_pause_s: 0.25
+  # Re-benchmarked on 8 real prompts (median 1,520 tokens) after that change:
+  #
+  #     batch 1   1.08 s/gen   peak 2.66 GB
+  #     batch 2   0.82 s/gen   peak 2.50 GB
+  #     batch 4   0.78 s/gen   peak 2.91 GB   <- chosen
+  #     batch 8   0.72 s/gen   peak 3.75 GB
+  #
+  # Batching buys much less than expected -- 1.5x from 1 to 8, and almost all of
+  # it by batch 2. Batch 4 takes ~92% of the available speedup for 0.84 GB less
+  # peak than batch 8, so it is the better trade on a GPU that also drives the
+  # screen. (The old note here claimed batch 8 would OOM. It does not.)
+  batch_size: 4
+  # Small pause is cheap insurance for the compositor now that TDR is the real
+  # fix rather than the workaround: ~3% of runtime at batch 4.
+  batch_pause_s: 0.1
   # Hard ceiling, so overrunning is a clean CUDA OOM rather than a display
-  # crash. The cache keeps whatever was already generated, so a restart at a
-  # smaller batch resumes instead of starting over.
-  max_vram_fraction: 0.5
+  # crash. 0.7 = 4.5 GB, comfortably above the 2.91 GB peak measured above.
+  max_vram_fraction: 0.7
 
 arms:
   - full
