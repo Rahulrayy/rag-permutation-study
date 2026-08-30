@@ -1,0 +1,20 @@
+==============================================================
+WEEK-1 GATE   arm=full  metric=f1
+==============================================================
+  queries                      79
+  permutations per query       3
+  mean f1                      0.3153
+
+  median within-query SD       0.2887   <-- kill criterion
+  mean within-query SD         0.2796
+  IQR of within-query SD       [0.0000, 0.5774]
+  median within-query range    0.5000
+
+  queries with zero variance   32.9%
+  queries that move at all     64.6%
+  between-query SD             0.2714
+--------------------------------------------------------------
+  VERDICT: PASS  (0.2887 >= 0.02)
+  Permutation variance exists at this scale. Premise holds;
+  proceed to week 2 (implement the arms).
+==============================================================
