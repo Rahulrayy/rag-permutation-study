@@ -80,6 +80,23 @@ class Pruner(ABC):
         """
         return list(chunks)
 
+    #: Set by an arm that needs the run's own generator. ``run.py`` then calls
+    #: ``attach(generator, params, **run_state)`` before selection, where
+    #: ``run_state`` carries the run's prompt ``template``, permutation
+    #: ``orders`` and ``seed``. An arm takes what it uses and ignores the rest,
+    #: so the signature is ``**run_state`` rather than a fixed list.
+    #:
+    #: Going through the run's generator is not a convenience: it puts these
+    #: calls in the same content-hash cache as the generations, so a rerun costs
+    #: nothing. `llm_pruner` (selection prompts) and `loo_oracle` (answer
+    #: log-probs) both set it.
+    needs_generator: bool = False
+
+    #: Set by an arm that needs the reference answers -- only `loo_oracle`, which
+    #: is a ceiling rather than a method for exactly this reason. ``run.py``
+    #: calls ``attach_answers(examples)`` with the post-filter example set.
+    needs_answers: bool = False
+
     def close(self) -> None:
         """Release any model this pruner holds. Called once after selection.
 

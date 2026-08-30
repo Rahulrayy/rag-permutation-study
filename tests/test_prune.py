@@ -10,7 +10,7 @@ from src.prune.base import validate_selection
 IMPLEMENTED = [
     "full", "nocontext", "random_drop", "placebo_pos",
     "provence_rerank", "provence_full", "rerank_topk", "llm_pruner",
-    "llmlingua2",
+    "llmlingua2", "loo_oracle",
 ]
 
 
@@ -91,10 +91,13 @@ def test_validate_rejects_duplicates(chunks):
         validate_selection([0, 0, 1], chunks, 3)
 
 
-def test_unimplemented_arms_raise_not_implemented(chunks):
-    for arm in set(registered_arms()) - set(IMPLEMENTED):
-        with pytest.raises(NotImplementedError):
-            get_pruner(arm).select("q", chunks, 3)
+def test_no_arm_is_still_a_stub():
+    """Every registered arm is implemented, as of week 3.
+
+    A new arm added as a stub fails here until it is listed, which is the
+    reminder to give it a NotImplementedError test of its own in the meantime.
+    """
+    assert set(registered_arms()) == set(IMPLEMENTED)
 
 
 # --------------------------------------------------------------------------- #
@@ -493,3 +496,223 @@ def test_llmlingua2_caches_per_chunk_and_rate(stub_lingua, chunks):
     assert len(stub_lingua.calls) == 10
     p.rewrite("q", chunks, 5)             # new rate -> recompressed
     assert len(stub_lingua.calls) == 20
+
+
+# --------------------------------------------------------------------------- #
+# loo_oracle. The ceiling. It reads the gold answer, so it is not a method and
+# its arithmetic has to be exactly right: a wrong ceiling silently rescales
+# every Oracle Gap in the study.
+# --------------------------------------------------------------------------- #
+
+class _ScriptedScorer:
+    """A generator whose answer log-prob is a known function of the context.
+
+    Each chunk contributes a fixed number of nats, so the leave-one-out drop for
+    a chunk is exactly its value and the oracle's ranking is checkable by hand.
+    With ``position_weight`` above zero the contribution decays down the context,
+    which is the confound the arm averages over orderings to remove.
+    """
+
+    model = "scripted-scorer"
+
+    def __init__(self, values, position_weight=0.0):
+        self.values = values
+        self.position_weight = position_weight
+        self.calls = []
+
+    @staticmethod
+    def _rendered_order(prompt):
+        seen = [(prompt.index(f"title{i}:"), i) for i in range(10)
+                if f"title{i}:" in prompt]
+        return [i for _, i in sorted(seen)]
+
+    def score(self, prompt, answer):
+        self.calls.append(prompt)
+        total = 0.0
+        for slot, idx in enumerate(self._rendered_order(prompt)):
+            total += self.values.get(idx, 0.0) * (1.0 - self.position_weight * slot)
+        return total
+
+
+def _oracle(values, position_weight=0.0, **kw):
+    from src.prune.loo_oracle import LOOOracle
+
+    gen = _ScriptedScorer(values, position_weight)
+    p = LOOOracle(generator=gen, answers={"q": "the answer"}, **kw)
+    return p, gen
+
+
+def test_oracle_keeps_the_chunks_whose_removal_hurts_most(chunks):
+    p, _ = _oracle({2: 5.0, 5: 4.0, 7: 3.0})
+    assert p.select("q", chunks, 3) == [2, 5, 7]
+
+
+def test_oracle_drop_is_the_lost_logprob_not_the_raw_score(chunks):
+    """A chunk the generator is better off without must rank last, not first."""
+    p, _ = _oracle({0: -6.0, 2: 5.0, 5: 4.0, 7: 3.0, 9: 1.0})
+    assert p.select("q", chunks, 3) == [2, 5, 7]
+    assert 0 not in p.select("q", chunks, 9)[:1]
+    assert p.stats.as_dict()["negative_drop_rate"] > 0
+
+
+def test_oracle_ties_break_on_the_as_given_order(chunks):
+    """Every drop equal: the selection must be the boring deterministic one."""
+    p, _ = _oracle({})
+    assert p.select("q", chunks, 3) == [0, 1, 2]
+    assert p.stats.degenerate == 1
+
+
+def test_oracle_counts_the_drop_distribution_once_per_query(chunks):
+    """`_record` runs once per (query, budget) cell and the shipped config has
+    three budgets, so anything budget-independent has to be counted where the
+    scoring happens or every distribution statistic triples."""
+    p, _ = _oracle({})
+    for budget in (2, 3, 5):
+        p.select("q", chunks, budget)
+    assert p.stats.cells == 3
+    assert p.stats.queries_scored == 1
+    assert p.stats.degenerate == 1           # not 3
+    assert len(p.stats.drops) == 10          # not 30
+    assert len(p.stats.baselines) == 1
+    assert p.stats.as_dict()["degenerate_rate"] == 1.0
+
+
+def test_oracle_selection_is_sorted_and_within_budget(chunks):
+    p, _ = _oracle({9: 5.0, 5: 4.0, 1: 3.0})
+    selected = p.select("q", chunks, 3)
+    assert selected == sorted(selected)
+    assert len(set(selected)) == 3
+
+
+def test_oracle_scores_every_leave_one_out_context_under_every_ordering(chunks):
+    p, gen = _oracle({2: 5.0})
+    p.select("q", chunks, 3)
+    # (10 leave-one-out contexts + 1 baseline) x P orderings
+    assert len(gen.calls) == 11 * 5
+
+
+def test_oracle_scores_once_across_budgets(chunks):
+    """Three budgets are three slices of one ranking, not three rankings."""
+    p, gen = _oracle({2: 5.0, 5: 4.0})
+    p.select("q", chunks, 2)
+    p.select("q", chunks, 3)
+    p.select("q", chunks, 5)
+    assert len(gen.calls) == 11 * 5
+    assert p.stats.queries_scored == 1
+    assert p.stats.cells == 3
+
+
+def test_oracle_at_or_above_full_budget_costs_nothing(chunks):
+    p, gen = _oracle({2: 5.0})
+    assert p.select("q", chunks, 10) == list(range(10))
+    assert gen.calls == []
+
+
+def test_oracle_averages_the_drop_over_orderings(chunks):
+    """Position-dependent scoring must not decide the selection on its own.
+
+    Chunk 9 is worth more content but sits last in as-given order, so a
+    single-order oracle prefers chunk 0. Averaging over the P orderings, which
+    put each of them first, second and last in turn, recovers the content
+    ranking.
+    """
+    values = {0: 3.0, 9: 4.0}
+    averaged, _ = _oracle(values, position_weight=0.15)
+    single, _ = _oracle(values, position_weight=0.15, orders=["rank"])
+    assert averaged.select("q", chunks, 1) == [9]
+    assert single.select("q", chunks, 1) == [0]
+
+
+def test_oracle_reports_its_own_order_sensitivity(chunks):
+    """The statistic llm_pruner reports, turned on the oracle. Free: the
+    per-order scores are already in hand."""
+    flat, _ = _oracle({2: 5.0, 5: 4.0, 7: 3.0})
+    flat.select("q", chunks, 3)
+    assert flat.stats.as_dict()["mean_order_jaccard"] == 1.0
+
+    positional, _ = _oracle({i: 1.0 + i * 0.1 for i in range(10)},
+                            position_weight=0.2)
+    positional.select("q", chunks, 3)
+    assert positional.stats.as_dict()["mean_order_jaccard"] < 1.0
+
+
+def test_oracle_counts_gold_recall(chunks):
+    """If the ceiling cannot find the gold paragraphs it is not a ceiling."""
+    found, _ = _oracle({2: 5.0, 5: 4.0})          # conftest golds are 2 and 5
+    found.select("q", chunks, 3)
+    assert found.stats.as_dict()["gold_recall"] == 1.0
+
+    missed, _ = _oracle({1: 5.0, 3: 4.0, 4: 3.0})
+    missed.select("q", chunks, 3)
+    assert missed.stats.as_dict()["gold_recall"] == 0.0
+
+
+def test_oracle_counts_a_budget_boundary_inside_the_noise(chunks):
+    p, _ = _oracle({2: 5.0, 5: 4.0, 7: 3.0, 8: 3.0 - 1e-6})
+    p.select("q", chunks, 3)                      # 3rd and 4th are indistinguishable
+    assert p.stats.boundary_ties == 1
+
+
+def test_oracle_without_a_generator_says_so(chunks):
+    from src.prune.loo_oracle import LOOOracle
+
+    with pytest.raises(RuntimeError, match="attach"):
+        LOOOracle(answers={"q": "a"}).select("q", chunks, 3)
+
+
+def test_oracle_without_an_answer_says_so(chunks):
+    from src.prune.loo_oracle import LOOOracle
+
+    p = LOOOracle(generator=_ScriptedScorer({}))
+    with pytest.raises(KeyError, match="attach_answers"):
+        p.select("q", chunks, 3)
+
+
+def test_oracle_attach_answers_rejects_a_colliding_question():
+    """Keying on the question is only safe if it is unique; otherwise one
+    example would be scored against another's gold, silently."""
+    from dataclasses import dataclass
+
+    from src.prune.loo_oracle import LOOOracle
+
+    @dataclass
+    class _Ex:
+        qid: str
+        question: str
+        answer: str
+
+    p = LOOOracle()
+    p.attach_answers([_Ex("1", "who?", "Ada"), _Ex("2", "who?", "Ada")])
+    assert p.answers == {"who?": "Ada"}
+
+    with pytest.raises(ValueError, match="different answers"):
+        p.attach_answers([_Ex("1", "who?", "Ada"), _Ex("2", "who?", "Grace")])
+
+
+def test_oracle_scores_against_the_runs_prompt_template(chunks):
+    """The log-prob has to be conditioned on the prompt the generator will
+    actually see, or the oracle ranks chunks for a prompt that never runs."""
+    from src.generate import ALT_TEMPLATE
+    from src.prune.loo_oracle import LOOOracle
+
+    gen = _ScriptedScorer({2: 5.0})
+    p = LOOOracle(answers={"q": "a"})
+    p.attach(gen, None, template=ALT_TEMPLATE, orders=["rank"], seed=7)
+    p.select("q", chunks, 3)
+    assert p.orders == ("rank",)
+    assert p.seed == 7
+    assert all(c.startswith(ALT_TEMPLATE[:20]) for c in gen.calls)
+
+
+def test_oracle_keeps_a_config_pinned_ordering_over_the_runs(chunks):
+    from src.prune.loo_oracle import LOOOracle
+
+    p = LOOOracle(answers={"q": "a"}, orders=["rank"])
+    p.attach(_ScriptedScorer({}), None, orders=["rank", "reverse", "random"])
+    assert p.orders == ("rank",)
+
+
+def test_oracle_does_not_rewrite_content(chunks):
+    p, _ = _oracle({2: 5.0})
+    kept = [c for c in chunks if c.idx in p.select("q", chunks, 3)]
+    assert p.rewrite("q", kept, 3) == kept

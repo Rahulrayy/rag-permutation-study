@@ -190,10 +190,26 @@ def run(cfg: Config) -> Path:
         # both provence variants share one entry.
         pruner = get_pruner(arm, **(arm_params.get(parse_arm(arm)[0], {}) or {}))
         if getattr(pruner, "needs_generator", False):
-            # llm_pruner asks the study's own generator which chunks to keep,
-            # so its selection calls go through the same cache as everything
-            # else and replay for free on a rerun.
-            pruner.attach(generator, params)
+            # llm_pruner asks the study's own generator which chunks to keep and
+            # loo_oracle asks it to score the reference answer, so both sets of
+            # calls go through the same cache as everything else and replay for
+            # free on a rerun. The rest of `run_state` is what an attached arm
+            # needs to build prompts the way this run builds them; each arm takes
+            # the parts it uses and ignores the rest.
+            pruner.attach(
+                generator,
+                params,
+                template=template,
+                orders=perm_cfg["strategies"],
+                seed=perm_cfg.get("seed", 20260828),
+            )
+        if getattr(pruner, "needs_answers", False):
+            # loo_oracle scores logP(gold answer | context), which `select` has
+            # no room for in its signature. It is a ceiling, not a method: see
+            # prune.loo_oracle, and ANALYSIS_PLAN Sec. 8 on why its Oracle Gap
+            # stays out of the confirmatory family.
+            pruner.attach_answers(examples)
+
 
         for ex in examples:
           for budget in budgets:
@@ -230,6 +246,7 @@ def run(cfg: Config) -> Path:
                         sum(len(c.text) for c in ordering),
                     )
                 )
+
 
         # Repair counters, where an arm keeps them. llm_pruner records how often
         # the model named too many passages or too few; an arm that failed to

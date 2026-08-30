@@ -117,8 +117,15 @@ class LLMPruner(Pruner):
         self.stats = PrunerStats()
         self._cache: dict[tuple[str, int, tuple[int, ...]], list[int]] = {}
 
-    def attach(self, generator: Any, params: Any) -> None:
-        """Receive the run's generator and decode params (called by run.py)."""
+    def attach(self, generator: Any, params: Any, **run_state: Any) -> None:
+        """Receive the run's generator and decode params (called by run.py).
+
+        ``run_state`` carries the run's prompt template and permutation
+        protocol. This arm uses neither: it builds its own SELECTION_TEMPLATE,
+        and its presentation order is ``selection_order``, an explicit parameter
+        of the arm rather than an inheritance from the generation grid. See the
+        module docstring on why that order is a recorded variable here.
+        """
         self.generator = generator
         # Selection needs more room than an answer does, but must stay greedy:
         # a sampled selection would put sampling noise inside the independent
