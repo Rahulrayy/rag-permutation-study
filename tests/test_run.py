@@ -3,6 +3,8 @@
 The audit exists to put a number on the one thing a hosted generator cannot
 promise, so its own failure modes matter more than most."""
 
+import pytest
+
 import src.run
 from src.cache import CachedGeneration, GenerationCache
 from src.generate import CachedGenerator, DecodeParams, DummyGenerator
@@ -116,6 +118,7 @@ def _pilot_on_dummy(tmp_path):
     return cfg
 
 
+@pytest.mark.network
 def test_instant_arms_print_no_selection_progress(tmp_path, capsys):
     """`full` decides without calling anything, and real time is used here, so
     the whole run finishes inside one interval. A line per arm regardless would
@@ -124,6 +127,7 @@ def test_instant_arms_print_no_selection_progress(tmp_path, capsys):
     assert "selected" not in capsys.readouterr().out
 
 
+@pytest.mark.network
 def test_a_slow_arm_reports_progress_with_an_eta(tmp_path, monkeypatch, capsys):
     """The case this exists for: cells that take real time must produce a line,
     so an idle-looking log can be told apart from a hung process."""
