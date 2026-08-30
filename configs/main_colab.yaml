@@ -1,0 +1,162 @@
+# Main run, adapted for Colab. Identical to configs/main.yaml except for the
+# three settings that exist only because the local GPU is a 6.4 GB laptop card
+# that also drives a display. Everything the analysis depends on is unchanged.
+#
+#     python -m src.run --config configs/main_colab.yaml
+#
+# Run it from the repo root. `cache.path` and `output.results_dir` are relative
+# to the process working directory, not to this file, so launching from
+# elsewhere puts the cache somewhere you did not mean.
+#
+# WHAT MUST NOT DIFFER FROM main.yaml, and why
+# --------------------------------------------
+# Every value under `data`, `permutation`, `stats`, `arm_params`, `budgets`, and
+# every `generator` key except the three below. In particular `quantization:
+# 4bit` -- a T4 has room for fp16 and it would be faster, but quantization
+# changes the generations, so a main run at fp16 is not comparable to the pilot
+# in results/pilot_w1/. TRITANIUM.md Step 4 makes the same call for the same
+# reason. ANALYSIS_PLAN Sec. 4 fixes these as registered parameters.
+#
+# BEFORE USING THIS FILE
+# ----------------------
+# Two gates, both already built, both cheap. See notebooks/colab_run.ipynb.
+#
+#   python -m src.smoke
+#       Check 3b generates a batch with the probe first vs last and asserts the
+#       outputs match. That is exactly the risk in raising batch_size below.
+#       If 3b fails here, do not raise it.
+#
+#   python -m src.run --config configs/pilot.yaml --audit 50
+#       cache.py keys generations on sha256(model, prompt, decode_params) -- no
+#       GPU, no batch size, no dtype. Rows generated on the laptop 3060 and rows
+#       generated on a Colab T4 therefore collide under one identical key with
+#       nothing recording which machine produced them. The cache already holds
+#       ~1,049 Qwen2.5-3B rows from the week-1 pilot, and `full` ignores budget,
+#       so its prompts at budgets 2/3/5 are byte-identical to the pilot's at
+#       budget 10 -- meaning those rows WILL be reused here unless the audit
+#       says they match. If it reports any divergence, delete the
+#       Qwen/Qwen2.5-3B-Instruct rows and regenerate on the T4 (~15 minutes).
+name: main_hotpotqa
+
+data:
+  dataset: hotpotqa_distractor
+  split: validation
+  n_queries: 300
+  seed: 20260828
+  stratify_by: hop_type
+  memorization_filter: true    # restrict primary analysis to nocontext-incorrect
+
+generator:
+  backend: local
+  model: Qwen/Qwen2.5-3B-Instruct
+  # Registered (ANALYSIS_PLAN Sec. 4). Do not relax to fp16 on a bigger card.
+  quantization: 4bit
+  max_new_tokens: 32
+  temperature: 0.0
+  do_sample: false
+  seed: 20260828
+
+  # --- the three Colab deviations, and nothing else ---
+
+  # DIFFERS from main.yaml (4). That figure was chosen against a 6.4 GB budget
+  # on a card also driving a screen, where batch 8's 3.75 GB peak was the
+  # binding concern. A T4's 16 GB removes that constraint.
+  #
+  # Left at 4 deliberately until measured. The local benchmark showed batching
+  # buys much less than expected -- 1.5x from batch 1 to 8, nearly all of it by
+  # batch 2 -- so the upside is small, while `smoke` check 3b exists precisely
+  # because batch composition can change greedy output through padding
+  # numerics. Raise this only after re-benchmarking on the T4 AND confirming 3b
+  # still passes at the new value.
+  batch_size: 4
+
+  # DIFFERS from main.yaml (0.1). That pause works around a Windows display
+  # driver reset (TDR) that cannot happen on a headless cloud GPU. It costs ~3%
+  # of runtime -- roughly 20 minutes across the full grid -- for nothing here.
+  batch_pause_s: 0.0
+
+  # DIFFERS from main.yaml (0.7). The cap converted a display crash into a
+  # clean CUDA OOM on a card shared with the compositor. Nothing shares this
+  # GPU. Kept as a generous ceiling rather than removed, so a runaway
+  # allocation still fails as an ordinary OOM instead of taking the session
+  # down in a way that is harder to read in a notebook.
+  max_vram_fraction: 0.9
+
+# Unchanged from main.yaml. `provence_rerank` and `provence_full` load remote
+# code that imports nltk and refuses to start without the punkt/punkt_tab data,
+# which a fresh Colab session does not have. The notebook downloads it during
+# setup; without that the run dies in the selection phase after GPU time is
+# already spent.
+arms:
+  - full
+  - nocontext
+  - rerank_topk
+  # Provence is two methods in one: an excellent reranker and a brutal
+  # sentence pruner. Run separately so their difference isolates the
+  # pruning contribution with selection held fixed. See src/prune/provence.py.
+  - provence_rerank
+  - provence_full
+  - llmlingua2
+  - llm_pruner
+  - random_drop
+  - placebo_pos
+  - loo_oracle
+
+budgets: [2, 3, 5]
+
+arm_params:
+  rerank_topk:
+    model: cross-encoder/ms-marco-MiniLM-L-6-v2
+  provence_rerank:
+    threshold: 0.1
+  provence_full:
+    threshold: 0.1
+  # placebo_pos takes no arm_params: the runner expands the bare name into
+  # placebo_pos:middle_first / :edges_first / :tail_first, one arm each, and
+  # each appears under its own name in generations.csv. To run a single variant,
+  # write it out in `arms` above instead of the bare name.
+  random_drop:
+    seed: 20260828
+  llm_pruner:
+    max_new_tokens: 64
+  llmlingua2:
+    # bert-base rather than xlm-roberta-large. Chosen for a 6 GB card (0.71 GB
+    # against 2.2) and KEPT here despite the T4's headroom: switching models
+    # would make this arm incomparable to every other run. A deviation from the
+    # paper's headline model either way; state it in the write-up.
+    model: microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank
+
+permutation:
+  n_permutations: 5
+  strategies: [rank, reverse, random, random, random]
+  seed: 20260828
+
+metrics:
+  baseline_arm: rerank_topk     # denominator arm for OAE
+  # OPEN (HANDOFF Sec. 8): all three placebo variants run, but only one can be
+  # the confirmatory comparator for H4. middle_first is the default because it
+  # is the shape a lost-in-the-middle-aware pruner produces by accident, which
+  # is the specific confound RQ4 is aimed at. Confirm or change this in
+  # ANALYSIS_PLAN.md before the main run; the other two are then exploratory.
+  placebo_arm: placebo_pos:middle_first
+  oracle_arm: loo_oracle
+
+stats:
+  bootstrap_replicates: 10000
+  ci: 0.95
+  correction: holm
+  seed: 20260828
+
+cache:
+  # Local Colab disk, NOT the Drive mount. SQLite over Drive's FUSE layer has
+  # unreliable file locking and WAL behaviour. The notebook restores this file
+  # from Drive at session start and syncs it back periodically -- checkpointing
+  # the WAL first, since the -wal file routinely holds far more than the .sqlite.
+  backend: sqlite
+  path: cache/generations.sqlite
+
+output:
+  # Same directory name as main.yaml on purpose: this is the same run, executed
+  # elsewhere, and the analysis should not have to know which machine produced
+  # it. The cross-device audit above is what earns the right to say that.
+  results_dir: results/main_hotpotqa

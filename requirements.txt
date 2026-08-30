@@ -16,7 +16,11 @@ datasets>=2.19
 
 # Local generator (4-bit 3B on the 3060)
 torch>=2.3
-transformers>=4.44
+# >=5.0, not >=4.44: src/generate.py passes `dtype=` to from_pretrained, which
+# is the 5.x parameter name (4.x called it `torch_dtype`). The old floor was
+# satisfiable by a 4.x that fails at model load, which never showed up here
+# because requirements.lock pins 5.16.1 -- only a fresh install could hit it.
+transformers>=5.0
 accelerate>=0.33
 bitsandbytes>=0.43
 sentencepiece>=0.2
