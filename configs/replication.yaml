@@ -1,0 +1,159 @@
+# Week-5 cross-generator replication: HotpotQA, Qwen3.8-27B on Groq.
+#
+# Purpose (plan Sec. 4.2, TIMELINE week 5): show the permutation finding is not
+# an artifact of a 3B local generator.
+#
+#     pip install 'groq>=0.11'
+#     # put GROQ_API_KEY=gsk_... in the repo-root .env (gitignored), or export
+#     # it in the shell -- an exported value wins. See src/env.py.
+#     python -m src.run --config configs/replication.yaml
+#
+# Hosted-API nondeterminism was the standing worry here, since the study's
+# primary endpoint IS a variance. It was measured rather than assumed before the
+# run: 4 queries x 5 identical repeat calls, greedy, fixed seed, 20/20
+# byte-identical (ANALYSIS_PLAN Sec. 9). That is reassuring, not a guarantee --
+# one session, one server pool, 3-5 token answers, which is the easiest case.
+# Treat a non-zero SD here as a real signal; do not treat it as interchangeable
+# with the local SD. See src/generate.py::GroqGenerator.
+#
+# RATE LIMITS, read from the response headers on this account: 1,000
+# requests/day and 8,000 tokens/min. Sizing, with the filter rate measured
+# rather than assumed (the nocontext arm was run first, on 2026-08-30):
+#
+#     memorization filter   100 -> 74 queries surviving
+#     nocontext                          100 calls  (already cached)
+#     full             74 x 3          =  222       (budgets dedupe: k is ignored)
+#     rerank_topk      74 x 2 x 3      =  444
+#     llm_pruner       444 + 74 x 2    =  592       (answers + selection calls)
+#     placebo_pos      74 x 2 x 3      =  444
+#                                       ~1,700 calls remaining
+#
+# So this WILL NOT FINISH IN ONE DAY -- expected, not a failure. The backend
+# raises a named "daily request cap" error instead of retrying blindly; rerun
+# the identical command after the reset and the cache replays everything already
+# paid for. Budget ~3 hours a day over 2 days.
+#
+# Three arms of the main grid are absent, deliberately:
+#   loo_oracle    needs Generator.score (log-prob of the reference answer).
+#                 Hosted chat APIs do not expose it. This is the reason the
+#                 primary generator is local at all, not an oversight -- so
+#                 there is no Oracle Gap for this run.
+#   provence_*    encoder models, not chat models. Groq serves no reranker
+#   llmlingua2    endpoint, so they would run on local hardware regardless and
+#                 would not be part of a *generator* comparison anyway.
+# All three still run under configs/main.yaml. Do not read the arm list below
+# as the study's arm list.
+name: replication_groq_hotpotqa
+
+data:
+  dataset: hotpotqa_distractor
+  split: validation
+  # Nested and seeded, so this is a strict prefix of the main run's 300 (see
+  # data.subsample). The two runs are therefore on the *same queries*, which is
+  # what makes the comparison a generator comparison and not a sample one.
+  n_queries: 100
+  seed: 20260828
+  stratify_by: hop_type
+  # Recomputed for THIS generator, not inherited from the local run: the filter
+  # is defined as "queries the generator cannot answer with no context" (plan
+  # Sec. 4.1), and a 27B has memorized more of HotpotQA than a 3B. Consequence
+  # to state in the write-up: the surviving population here is smaller than, and
+  # a subset-in-spirit but not in fact of, the main run's. Reusing the 3B's
+  # population instead would leave queries the 27B answers from memory in the
+  # analysis and inflate every arm equally.
+  memorization_filter: true
+
+generator:
+  backend: groq
+  # NOT the llama-3.3-70b the working plan named: that checkpoint has been
+  # retired from Groq's catalogue and 404s. Chosen by measurement over every
+  # chat model on the account -- see ANALYSIS_PLAN Sec. 9, 2026-08-30.
+  #
+  # The short version: everything else available is a *reasoning* model whose
+  # chain of thought is billed against the completion budget, so at the
+  # registered max_new_tokens=32 they answer with an empty string. On 10 real
+  # HotpotQA prompts this model truncated 0/10 at F1 0.830; gpt-oss-120b at
+  # reasoning_effort=low truncated 6/10 at F1 0.380.
+  #
+  # What this costs, and it is not nothing: Qwen3.8-27B shares a lineage with
+  # the local Qwen2.5-3B, so this is a SCALE check (~9x) and not a FAMILY check.
+  # It cannot rule out a Qwen-family positional artifact. Write it up that way.
+  model: qwen/qwen3.8-27b
+  # Unchanged from main.yaml. Preserving the registered decode parameters is
+  # exactly why the larger cross-family model was passed over.
+  max_new_tokens: 32
+  # Greedy, as everywhere. The API has no do_sample flag; temperature 0 plus a
+  # fixed seed is the closest it offers, and run.py still refuses anything else.
+  temperature: 0.0
+  do_sample: false
+  seed: 20260828
+  # Serial. At 8,000 TPM and ~1,550-token prompts the ceiling is ~5 requests a
+  # minute, so extra workers add contention and 429s, not throughput. The backend
+  # paces itself off Groq's own x-ratelimit-remaining-tokens header.
+  concurrency: 1
+  # Nothing is written to the cache until a whole block completes, so the block
+  # size is the amount of *paid API calls* a crash throws away. The local
+  # default of 64 is about a minute of GPU time; here it would be hours.
+  flush_every: 8
+
+arms:
+  # Defines the analysis population for every other arm, and collapses to P=1.
+  - nocontext
+  # RQ1: the permutation SD itself, on the un-pruned context. The whole point of
+  # this run is whether this number survives a change of generator.
+  - full
+  # The standard practical pruner, and metrics.baseline_arm below.
+  - rerank_topk
+  # The arm whose *selection* is order-dependent (see prune/llm_pruner.py). It
+  # rides the same cached generator, so it replicates on Groq for free -- and
+  # its selection-stability Jaccard at 27B is a finding in its own right.
+  - llm_pruner
+  # One variant, pinned rather than expanded: a bare `placebo_pos` would run all
+  # three strategies and triple the call budget. middle_first is already
+  # main.yaml's confirmatory comparator for H4, so pinning it keeps the
+  # replication aimed at the hypothesis the main run tests.
+  - placebo_pos:middle_first
+
+# Two, not three. The matched-keep-count comparison against the placebo needs at
+# least two points to show the effect is not a single-k accident.
+budgets: [3, 5]
+
+permutation:
+  # Three, not five: the plan's Sec. 5 sizing for this run. The SD is then over
+  # three draws and its CI is correspondingly wider -- report it that way. rank
+  # and reverse bracket the range; the single random draw is the interior check.
+  n_permutations: 3
+  strategies: [rank, reverse, random]
+  seed: 20260828
+
+arm_params:
+  rerank_topk:
+    model: cross-encoder/ms-marco-MiniLM-L-6-v2
+    # Pinned to CPU so this config runs with no GPU at all. The cross-encoder is
+    # 22M parameters and scores 100 x 10 pairs, which is seconds either way --
+    # the point of this run is the hosted generator, not local throughput.
+    device: cpu
+  llm_pruner:
+    max_new_tokens: 64
+
+metrics:
+  baseline_arm: rerank_topk
+  placebo_arm: placebo_pos:middle_first
+  # No oracle_arm: loo_oracle cannot run on a hosted backend (see the header),
+  # so Oracle Gap is a main-run quantity only.
+
+stats:
+  bootstrap_replicates: 10000
+  ci: 0.95
+  correction: holm
+  seed: 20260828
+
+cache:
+  # Shared with every other config on purpose: cache_key hashes the model name
+  # alongside the prompt (src/cache.py), so local and hosted generations cannot
+  # collide, and a re-run of this config costs nothing.
+  backend: sqlite
+  path: cache/generations.sqlite
+
+output:
+  results_dir: results/replication_groq

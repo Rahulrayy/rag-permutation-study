@@ -13,14 +13,15 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import random
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 import yaml
 
-from .cache import GenerationCache
+from .cache import GenerationCache, cache_key
 from .chunks import keep, permutation_set
 from .data import load_dataset, memorization_filter
 from .generate import (
@@ -67,7 +68,10 @@ def build_generator(cfg: Config) -> CachedGenerator:
             batch_pause_s=gen_cfg.get("batch_pause_s", 0.0),
         )
     elif backend_name == "groq":
-        backend = GroqGenerator(model=gen_cfg["model"])
+        backend = GroqGenerator(
+            model=gen_cfg["model"],
+            concurrency=gen_cfg.get("concurrency", 4),
+        )
     elif backend_name == "dummy":
         backend = DummyGenerator()
     else:
@@ -78,7 +82,13 @@ def build_generator(cfg: Config) -> CachedGenerator:
         cache=GenerationCache(cfg["cache"]["path"]),
         # Flush a batch at a time so an interrupted overnight run keeps
         # everything it has already paid for, and prints as it goes.
-        flush_every=max(1, gen_cfg.get("batch_size", 8)) * 8,
+        #
+        # Overridable because the right block size is a property of the backend,
+        # not of the grid: nothing is written until a whole block completes, so
+        # the default 64 is ~1 minute of exposure on the local GPU but well over
+        # an hour on a rate-limited hosted run, where the calls are the thing
+        # you cannot afford to repeat. See configs/replication.yaml.
+        flush_every=gen_cfg.get("flush_every", max(1, gen_cfg.get("batch_size", 8)) * 8),
         progress=True,
     )
 
@@ -263,7 +273,92 @@ def run(cfg: Config) -> Path:
             fh.write(chr(10))
         print(f"wrote arm repair counters -> {stats_path}")
 
+    audit_n = cfg.get("audit_determinism") or 0
+    if audit_n:
+        audit = audit_determinism(
+            generator, pending_prompts, params, audit_n, perm_cfg.get("seed", 20260828)
+        )
+        audit_path = out_dir / "determinism_audit.json"
+        with open(audit_path, "w", encoding="utf-8") as fh:
+            json.dump(audit, fh, indent=2, sort_keys=True)
+            fh.write(chr(10))
+        print(f"wrote determinism audit -> {audit_path}")
+
     return out_path
+
+
+def audit_determinism(
+    generator: CachedGenerator,
+    prompts: Sequence[str],
+    params: DecodeParams,
+    n: int,
+    seed: int,
+) -> dict[str, Any]:
+    """Re-issue already-cached prompts and report how many come back identical.
+
+    Turns the hosted-backend caveat into a number. `temperature=0` on a hosted
+    API is best-effort, not greedy: serving batches requests across tenants, and
+    for an MoE model the batch composition changes the arithmetic. The study's
+    primary endpoint IS a within-query variance, so drift would land inside the
+    quantity being reported with nothing to separate it from position bias.
+
+    Two structural defences already exist and this measures what is left. First,
+    the cache pays for each distinct prompt once, so a cell is never *itself*
+    re-sampled. Second, `run` emits the P permutations of a cell consecutively,
+    so the calls the primary SD is computed from are issued seconds apart --
+    day-scale drift therefore lands between cells, not inside the endpoint.
+    Neither argument covers a run that spans a rate-limit day boundary, which
+    this grid does, hence this check.
+
+    Run it on the SECOND day, when the cache is warm and the routing has had a
+    chance to change: that is the comparison with teeth. Same-session repeats
+    measure very little.
+
+    Deliberately bypasses the cache wrapper -- going through it would return the
+    stored answer and report a perfect score, which is the one result this
+    cannot be allowed to produce.
+    """
+    distinct = sorted(set(prompts))
+    if not distinct:
+        return {"checked": 0, "identical": 0, "divergences": []}
+
+    sample = random.Random(seed).sample(distinct, min(n, len(distinct)))
+    checked = 0
+    divergences: list[dict[str, str]] = []
+
+    for prompt in sample:
+        cached = generator.cache.get(
+            cache_key(generator.model, prompt, params.as_key())
+        )
+        if cached is None:
+            # Not generated yet -- a partial run. Nothing to compare against.
+            continue
+        checked += 1
+        fresh = generator.backend.generate(prompt, params)
+        if fresh.text != cached.text:
+            divergences.append(
+                {
+                    "prompt_sha256": cache_key(generator.model, prompt, params.as_key()),
+                    "cached": cached.text,
+                    "fresh": fresh.text,
+                }
+            )
+
+    identical = checked - len(divergences)
+    rate = identical / checked if checked else float("nan")
+    print(
+        f"determinism audit: {identical}/{checked} identical on re-issue "
+        f"({rate:.1%})"
+    )
+    for d in divergences[:5]:
+        print(f"    cached {d['cached']!r} -> fresh {d['fresh']!r}")
+    return {
+        "checked": checked,
+        "identical": identical,
+        "identical_rate": rate,
+        "model": generator.model,
+        "divergences": divergences,
+    }
 
 
 def _row(
@@ -308,6 +403,14 @@ def main() -> None:
     parser.add_argument("--arms", nargs="*", help="override the config arm list")
     parser.add_argument("--backend", help="override the generator backend")
     parser.add_argument("--n", type=int, help="override n_queries")
+    parser.add_argument(
+        "--audit",
+        type=int,
+        metavar="N",
+        help="re-issue N already-cached prompts and report how many come "
+        "back identical. Run this on the second day of a multi-day hosted "
+        "run: same-session repeats measure very little.",
+    )
     parser.add_argument("--figures-only", action="store_true")
     args = parser.parse_args()
 
@@ -321,6 +424,8 @@ def main() -> None:
             cfg.raw["output"]["results_dir"] += "_dummy"
     if args.n is not None:
         cfg.raw["data"]["n_queries"] = args.n
+    if args.audit is not None:
+        cfg.raw["audit_determinism"] = args.audit
     if args.figures_only:
         raise NotImplementedError("figure generation not implemented (week 6)")
 

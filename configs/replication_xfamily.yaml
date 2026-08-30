@@ -1,0 +1,105 @@
+# Cross-FAMILY probe: HotpotQA, ALLaM-2-7B on Groq. RQ1 only.
+#
+#     python -m src.run --config configs/replication_xfamily.yaml
+#
+# Why this exists
+# ---------------
+# configs/replication.yaml runs qwen/qwen3.8-27b, which shares a lineage with
+# the local Qwen2.5-3B. That makes it a SCALE check (~9x) and leaves one hole
+# open: a positional effect common to the whole Qwen family would reproduce in
+# both runs and look like confirmation (ANALYSIS_PLAN Sec. 9, 2026-08-30).
+#
+# This config closes that hole at the cheapest price that answers it. It is not
+# a second replication and does not try to be: it runs ONE arm, because the
+# question is narrow. "Does the answer move when the context is permuted?" is
+# RQ1, RQ1 lives in the `full` arm, and `full` is the only arm needed to say
+# whether the effect exists outside the Qwen family. Arm-level comparisons,
+# budgets and the placebo stay with the two full-grid runs.
+#
+# Cost: 100 nocontext + 100 x 3 permutations = 400 calls. ALLaM's ceiling is
+# 7,000 requests/day against qwen's 1,000, so this finishes in one sitting and
+# does not compete with the main replication for quota.
+#
+# Model choice, measured on the same 10 HotpotQA prompts as the others
+# --------------------------------------------------------------------
+# ALLaM-2-7B is the ONLY non-Qwen generative model on this account that answers
+# in the registered format at max_new_tokens=32:
+#
+#     allam-2-7b            truncated 1/10   F1 0.445   EM 0.300   <- this
+#     openai/gpt-oss-120b   truncated 6/10   F1 0.380   EM 0.300   (reasoning)
+#     openai/gpt-oss-20b    truncated 10/10                        (reasoning)
+#     qwen/qwen3.6-27b      leaks <think> into the answer
+#
+# Excluded on sight, and worth writing down so nobody "fixes" this later:
+#   groq/compound, groq/compound-mini  -- agentic systems with tool use. They
+#     can SEARCH THE WEB, which would destroy the closed-context premise the
+#     entire study rests on. Never put these behind a RAG evaluation.
+#   meta-llama/llama-prompt-guard-2-*, openai/gpt-oss-safeguard-20b -- safety
+#     classifiers, not generative models.
+#   whisper-*, canopylabs/orpheus-*    -- speech, not text.
+#
+# Read the result as EXISTENCE, not magnitude
+# -------------------------------------------
+# ALLaM-2-7B is a weaker model on this task than either Qwen. A different SD
+# here is expected and is not evidence about scale: this run is powered to say
+# "the effect appears outside the Qwen family too" and nothing finer. Comparing
+# its SD *magnitude* against the 27B's would confound family with capability.
+name: replication_xfamily_allam
+
+data:
+  dataset: hotpotqa_distractor
+  split: validation
+  # Same seeded prefix as the other two runs, so all three draw the same
+  # queries before filtering and the comparison is about generators.
+  n_queries: 100
+  seed: 20260828
+  stratify_by: hop_type
+  # Recomputed for this generator, as for every other (plan Sec. 3). A 7B
+  # memorizes less than the 27B, so expect MORE queries to survive here than
+  # the 74/100 measured for qwen3.8-27b -- a third population, stated as such.
+  memorization_filter: true
+
+generator:
+  backend: groq
+  model: allam-2-7b
+  # Registered decode parameters, unchanged. Preserving them is the whole
+  # reason the reasoning models were passed over.
+  max_new_tokens: 32
+  temperature: 0.0
+  do_sample: false
+  seed: 20260828
+  # 6,000 TPM on this model. Same reasoning as the main replication: the
+  # backend paces itself off the rate-limit headers, so workers add nothing.
+  concurrency: 1
+  flush_every: 8
+
+# One arm, plus the population definition. See the header on why this is not
+# an oversight.
+arms:
+  - nocontext
+  - full
+
+# `full` ignores the budget by construction; 10 records "no pruning" honestly
+# rather than implying a keep-count that was never applied.
+budgets: [10]
+
+permutation:
+  # Matches configs/replication.yaml so the two are directly comparable on RQ1.
+  n_permutations: 3
+  strategies: [rank, reverse, random]
+  seed: 20260828
+
+stats:
+  bootstrap_replicates: 10000
+  ci: 0.95
+  correction: holm
+  seed: 20260828
+
+cache:
+  # Shared. cache_key hashes the model name, so the three generators cannot
+  # collide (src/cache.py).
+  backend: sqlite
+  path: cache/generations.sqlite
+
+output:
+  results_dir: results/replication_xfamily

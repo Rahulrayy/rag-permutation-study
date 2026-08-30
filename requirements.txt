@@ -32,7 +32,11 @@ sentencepiece>=0.2
 #   python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')"
 nltk>=3.8
 
-# Cross-generator check (week 5)
+# Cross-generator check (week 5). Verified on groq 1.7.0 -- the >=0.11 floor is
+# historical and the 1.x client is what src/generate.py is written against.
+# Safe for this environment: its dependency closure is httpx/pydantic/anyio and
+# nothing else, so unlike most additions here it cannot pull a PyPI torch over
+# the cu128 build (HANDOFF Sec. 6). Confirmed with `pip install --dry-run`.
 groq>=0.11
 
 # Analysis

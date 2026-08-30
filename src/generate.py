@@ -14,6 +14,8 @@ noise and permutation noise are confounded and the design collapses.
 from __future__ import annotations
 
 import hashlib
+import re
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Protocol, Sequence
@@ -449,27 +451,356 @@ class LocalGenerator:
 # Hosted backend
 # --------------------------------------------------------------------------- #
 
+_DURATION_UNITS = {"ms": 0.001, "s": 1.0, "m": 60.0, "h": 3600.0}
+_DURATION_RE = re.compile(r"(\d+(?:\.\d+)?)(ms|h|m|s)")
+
+
+def _parse_duration(raw: str | None) -> float | None:
+    """Seconds from Groq's compound duration format: ``27.277s``, ``1h7m40.8s``.
+
+    Returns None for anything unparseable, so a header format change degrades to
+    the caller's fallback rather than to a crash mid-run.
+    """
+    if not raw:
+        return None
+    matches = _DURATION_RE.findall(raw.strip())
+    if not matches:
+        return None
+    return sum(float(value) * _DURATION_UNITS[unit] for value, unit in matches)
+
+
+class _TokenBudget:
+    """Paces requests off the account's token-per-minute window.
+
+    Blind exponential backoff does not work against a TPM limit shared by
+    several workers: they sleep independently, wake together, and re-exhaust the
+    window. That is exactly how the first live run of this backend failed --
+    six retries spanning 63s all landed inside one saturated 60s window and the
+    429 escaped to the caller.
+
+    Groq reports ``x-ratelimit-remaining-tokens`` and ``x-ratelimit-reset-tokens``
+    on *every* response, so the right amount to wait is a fact to be read, not a
+    quantity to be guessed. This tracks that window across threads and blocks
+    before a request that would not fit.
+
+    The lock is deliberately held across the sleep. At 8,000 TPM and ~1,500-token
+    prompts the ceiling is about five requests a minute, so there is no
+    throughput to lose by serialising, and holding it removes the race where a
+    waiting worker is overtaken by one that sees a stale budget.
+    """
+
+    def __init__(self, headroom_tokens: int = 1000) -> None:
+        #: Stay this far clear of the ceiling. A request's cost is estimated
+        #: from character count, and undershooting costs a 429 plus a full
+        #: window -- far more than the throughput the headroom gives up.
+        self._headroom = headroom_tokens
+        self._lock = threading.Lock()
+        self._remaining: int | None = None
+        self._reset_at = 0.0
+        self.waited_s = 0.0
+        self.waits = 0
+
+    def observe(self, headers: Any) -> None:
+        """Update the window from a response's headers. Cheap and idempotent."""
+        raw_remaining = headers.get("x-ratelimit-remaining-tokens")
+        if raw_remaining is None:
+            return
+        try:
+            remaining = int(float(raw_remaining))
+        except (TypeError, ValueError):
+            return
+        reset = _parse_duration(headers.get("x-ratelimit-reset-tokens"))
+        with self._lock:
+            self._remaining = remaining
+            if reset is not None:
+                self._reset_at = time.monotonic() + reset
+
+    def acquire(self, cost: int) -> float:
+        """Block until ``cost`` tokens plausibly fit. Returns seconds slept."""
+        with self._lock:
+            if self._remaining is not None and self._remaining < cost + self._headroom:
+                delay = max(0.0, self._reset_at - time.monotonic())
+                if delay:
+                    time.sleep(delay)
+                    self.waited_s += delay
+                    self.waits += 1
+                # The window has refilled; the next response re-establishes the
+                # true figure. Optimistic, but only ever by one request.
+                self._remaining = None
+            if self._remaining is not None:
+                self._remaining -= cost
+        return 0.0
+
+
+def _estimate_tokens(prompt: str, max_new_tokens: int) -> int:
+    """Rough token cost of one call, for pacing only.
+
+    Four characters per token is the usual English approximation and does not
+    need to be better than that: it feeds a headroom check, not a billing
+    figure, and the real number arrives in the next response's headers.
+    """
+    return len(prompt) // 4 + max_new_tokens
+
+
+def _daily_cap_error(wait_s: float | None) -> RuntimeError:
+    """The one rate-limit condition that is not worth waiting out in-process.
+
+    A long grid is *expected* to cross the daily cap -- that is a schedule, not
+    a failure -- so this says what happened, what it costs (nothing) and what to
+    do, rather than surfacing an opaque 429 after the retry ceiling.
+    """
+    when = ""
+    if wait_s is not None:
+        hours = wait_s / 3600.0
+        when = f" It resets in about {hours:.1f}h." if hours >= 1 else ""
+    return RuntimeError(
+        "Groq's daily request cap for this account is exhausted." + when + " Nothing "
+        "already generated is lost: rerun the identical command after the reset "
+        "and the cache replays every call paid for so far, resuming where this "
+        "stopped. See console.groq.com/settings/limits."
+    )
+
+
+def _daily_requests_exhausted(headers: Any) -> bool:
+    """True when the account has no requests left today.
+
+    Distinguished from per-minute throttling by the header rather than by the
+    size of the Retry-After: a daily rejection can still carry a small
+    ``reset-tokens``, and sleeping five seconds into an exhausted day would loop
+    until the retry ceiling and then report the wrong cause.
+    """
+    raw = headers.get("x-ratelimit-remaining-requests")
+    if raw is None:
+        return False
+    try:
+        return int(float(raw)) <= 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _retry_after(exc: Any) -> float | None:
+    """Seconds the server asked us to wait, when it says.
+
+    Groq answers a 429 with a ``retry-after`` header. Honouring it is the
+    difference between waiting once and spending the daily request cap on
+    retries that were always going to be refused.
+    """
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers is None:
+        return None
+
+    raw = headers.get("retry-after")
+    if raw is not None:
+        try:
+            return max(0.0, float(raw))
+        except (TypeError, ValueError):
+            # Some proxies send an HTTP-date instead of seconds. Fall through to
+            # the reset headers rather than guessing at a clock skew.
+            pass
+
+    # A TPM rejection carries the window reset even when retry-after is absent
+    # or unparseable, and it is the more precise of the two. Requests-per-day is
+    # checked second: it resets in hours, and the caller treats a wait that long
+    # as the daily cap rather than as something to sleep through.
+    for header in ("x-ratelimit-reset-tokens", "x-ratelimit-reset-requests"):
+        seconds = _parse_duration(headers.get(header))
+        if seconds is not None:
+            return seconds
+    return None
+
+
 @dataclass
 class GroqGenerator:
     """Cross-generator check, n=100 (plan Sec. 4.2, Sec. 5).
 
-    Before sizing a run against this, check console.groq.com/settings/limits
-    yourself. The binding constraint is more likely tokens-per-minute than
-    requests-per-day, and both vary per model.
+    A second model on the same queries, to show the finding is not an artifact
+    of a 3B local generator. Not a drop-in replacement for `LocalGenerator`, for
+    two reasons that are methodological rather than technical.
 
-    STATUS: stubbed (week 5). ``score`` is expected to stay unavailable, which is
-    exactly why the primary generator is local.
+    **No answer log-probs.** ``score`` is unavailable, so the `loo_oracle` arm
+    cannot run here. That is the reason the primary generator is local at all.
+
+    **Greedy is best-effort.** ``temperature=0`` is the closest this API offers,
+    and ``seed`` is a hint: hosted serving batches requests across tenants, and
+    for a mixture-of-experts model the batch composition changes the arithmetic.
+    That matters more here than in most projects, because the headline quantity
+    is *within-query SD across permutations* -- API nondeterminism would land in
+    exactly that number with nothing to separate it from position bias.
+
+    So it was measured rather than assumed (ANALYSIS_PLAN Sec. 9, 2026-08-30):
+    4 HotpotQA queries x 5 identical repeat calls to ``qwen/qwen3.8-27b``,
+    greedy, fixed seed, **20/20 byte-identical**. Evidence, not a guarantee --
+    one session, one server pool, 3-5 token answers. The generation cache
+    narrows the exposure further by paying for each distinct prompt once and
+    then freezing it. Treat a non-zero SD here as real; do not treat it as
+    interchangeable with the local SD.
+
+    Rate limits: check console.groq.com/settings/limits before sizing a run, and
+    note that BOTH ceilings bind. Measured on the development account: 8,000
+    tokens/min, which at ~1,500-token prompts is ~5 requests/min and sets the
+    pace, and 1,000 requests/day, which caps total volume regardless. A grid
+    larger than the daily cap is expected to span days; ``_complete`` raises a
+    named error for that case rather than retrying into it, and the cache makes
+    the resumed run free.
     """
 
-    model: str = "llama-3.3-70b-versatile"
+    #: Not llama-3.3-70b: retired from the catalogue. See the model-selection
+    #: note in configs/replication.yaml -- every other chat model on the account
+    #: is a reasoning model that returns an empty answer at max_new_tokens=32.
+    model: str = "qwen/qwen3.8-27b"
+    #: None -> read GROQ_API_KEY from the environment. Never put a key in a
+    #: config file: configs are committed, and this one is a portfolio repo.
+    api_key: str | None = None
+    #: In-flight requests. 1 is right for a token-limited account: at 8,000 TPM
+    #: and ~1,500-token prompts the ceiling is ~5 requests a minute, so extra
+    #: workers add contention and 429s rather than throughput. Raise it only for
+    #: short prompts or a paid tier.
+    concurrency: int = 1
+    #: A 429 is routine here, not exceptional -- a TPM window refills every
+    #: minute and a long grid will cross many of them. This is a ceiling on
+    #: consecutive failures for one prompt, not an error budget for the run.
+    max_retries: int = 8
+    max_backoff_s: float = 90.0
+    timeout_s: float = 60.0
+    #: Shared across every worker, so pacing is a property of the account rather
+    #: than of one thread. Constructed per generator instance.
+    budget: _TokenBudget = field(default_factory=_TokenBudget, repr=False)
+    _api: Any = field(default=None, init=False, repr=False)
+
+    def _client(self) -> Any:
+        if self._api is not None:
+            return self._api
+
+        import os
+
+        from .env import DEFAULT_ENV_PATH, load_env
+
+        try:
+            import groq
+        except ImportError as exc:  # pragma: no cover - depends on the env
+            raise RuntimeError(
+                "the groq backend needs the SDK: pip install 'groq>=0.11'"
+            ) from exc
+
+        # Pull in the repo-root .env if there is one. Done here rather than in
+        # run.py so that a notebook or a one-off script driving this backend
+        # directly gets the key the same way the CLI does. An already-exported
+        # GROQ_API_KEY wins over the file.
+        load_env()
+
+        key = self.api_key or os.environ.get("GROQ_API_KEY")
+        if not key:
+            raise RuntimeError(
+                "GROQ_API_KEY is not set. Create a key at console.groq.com/keys, "
+                f"then either put it in {DEFAULT_ENV_PATH} as "
+                "GROQ_API_KEY=gsk_... or export it in this shell."
+            )
+        # max_retries=0: the retry policy lives in `_complete`, so a Retry-After
+        # longer than the SDK's internal cap is actually waited out instead of
+        # being truncated into an immediate second 429.
+        self._api = groq.Client(api_key=key, max_retries=0, timeout=self.timeout_s)
+        return self._api
+
+    def _complete(self, prompt: str, params: DecodeParams) -> CachedGeneration:
+        import groq
+
+        client = self._client()
+        backoff = 1.0
+        cost = _estimate_tokens(prompt, params.max_new_tokens)
+
+        for attempt in range(self.max_retries + 1):
+            # Wait for room in the token window before spending a request on a
+            # call the server is going to refuse.
+            self.budget.acquire(cost)
+            try:
+                # with_raw_response so the rate-limit headers survive parsing.
+                # They are what makes the pacing above self-correcting rather
+                # than a guess that drifts.
+                raw = client.chat.completions.with_raw_response.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=params.max_new_tokens,
+                    temperature=0.0,
+                    seed=params.seed,
+                    stream=False,
+                )
+            except groq.APIConnectionError:
+                if attempt == self.max_retries:
+                    raise
+                asked = None
+            except groq.APIStatusError as exc:
+                # 429 and 5xx are worth waiting out. 400/401/404 are not: a bad
+                # model name or a rejected key will not fix itself, and retrying
+                # one buries the real error behind a minute of backoff.
+                if exc.status_code != 429 and exc.status_code < 500:
+                    raise
+                headers = getattr(getattr(exc, "response", None), "headers", None)
+                if headers:
+                    if _daily_requests_exhausted(headers):
+                        raise _daily_cap_error(_retry_after(exc)) from exc
+                    # Feed the rejection back into the pacer: a 429 carries the
+                    # same window headers a success does, so the next attempt
+                    # waits the right amount instead of the doubling guess.
+                    self.budget.observe(headers)
+                if attempt == self.max_retries:
+                    raise
+                asked = _retry_after(exc)
+            else:
+                self.budget.observe(raw.headers)
+                choice = raw.parse().choices[0]
+                return CachedGeneration(
+                    text=(choice.message.content or "").strip(),
+                    meta={
+                        "backend": "groq",
+                        # "length" means the answer hit max_new_tokens and was
+                        # cut off. That scores as a wrong answer rather than as
+                        # an error, so a run with many of them is measuring
+                        # truncation, not position. Recorded to be checkable.
+                        "finish_reason": choice.finish_reason,
+                    },
+                )
+
+            if asked is None:
+                wait, backoff = backoff, min(backoff * 2, self.max_backoff_s)
+            elif asked > self.max_backoff_s:
+                # Backstop for the same condition when the headers did not say
+                # so outright: a wait this long is not per-minute throttling,
+                # and no amount of sleeping inside this process will clear it.
+                raise _daily_cap_error(asked)
+            else:
+                wait = asked
+            time.sleep(wait)
+
+        raise RuntimeError("retry loop exited without returning")  # unreachable
 
     def generate(self, prompt: str, params: DecodeParams) -> CachedGeneration:
-        raise NotImplementedError("groq backend not implemented (week 5)")
+        return self.generate_batch([prompt], params)[0]
 
     def generate_batch(
         self, prompts: Sequence[str], params: DecodeParams
     ) -> list[CachedGeneration]:
-        return [self.generate(p, params) for p in prompts]
+        # Validate before opening a client, so a bad decode config fails in
+        # milliseconds with the real reason rather than after the first call.
+        if params.do_sample or params.temperature != 0.0:
+            raise ValueError("greedy decoding only; see plan Sec. 4.2")
+        if not prompts:
+            return []
+
+        # Construct up front: a missing key should be one clear error, not N
+        # identical ones surfacing out of a thread pool.
+        self._client()
+
+        if self.concurrency <= 1:
+            return [self._complete(p, params) for p in prompts]
+
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=self.concurrency) as pool:
+            # `map` yields in submission order. CachedGenerator zips the result
+            # against its own key list, so returning out of order would silently
+            # attach every answer to the wrong row.
+            return list(pool.map(lambda p: self._complete(p, params), prompts))
 
     def score(self, prompt: str, answer: str) -> float:
         raise NotImplementedError(
