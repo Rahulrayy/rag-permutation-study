@@ -39,6 +39,11 @@ from .prune import expand_arms, get_pruner, parse_arm
 
 TEMPLATES = {"default": DEFAULT_TEMPLATE, "alt": ALT_TEMPLATE}
 
+#: Seconds between selection-progress lines. Long enough that arms deciding
+#: instantly print nothing at all, short enough that a multi-hour hosted run
+#: never looks hung.
+SELECTION_PROGRESS_S = 30.0
+
 
 @dataclass
 class Config:
@@ -210,6 +215,22 @@ def run(cfg: Config) -> Path:
             # stays out of the confirmatory family.
             pruner.attach_answers(examples)
 
+        # Selection progress, printed on a timer rather than a counter.
+        #
+        # Most arms decide instantly and would only add noise; `llm_pruner` and
+        # `loo_oracle` call the generator once (or n+1 times) per cell, which on
+        # a rate-limited hosted backend is ~12s each. That is upwards of half an
+        # hour during which nothing was printed, in the one phase where the
+        # per-cell work does NOT go through `CachedGenerator.generate_batch` and
+        # so gets none of its block reporting. An idle-looking log is exactly
+        # what the flush_every blocks exist to prevent (see cache.py); this
+        # closes the same gap on the path that bypasses them.
+        #
+        # Time-based, so an arm that finishes inside one interval stays silent
+        # and no threshold has to be tuned per arm.
+        arm_cells = len(examples) * len(budgets)
+        cell_i = 0
+        arm_started = last_print = time.time()
 
         for ex in examples:
           for budget in budgets:
@@ -247,6 +268,20 @@ def run(cfg: Config) -> Path:
                     )
                 )
 
+            cell_i += 1
+            now = time.time()
+            if now - last_print >= SELECTION_PROGRESS_S:
+                done = now - arm_started
+                # Remaining is a flat extrapolation of the mean rate so far. On
+                # a rate-limited backend that is honest enough to plan an
+                # evening around, which is all it is for.
+                eta = done / cell_i * (arm_cells - cell_i)
+                print(
+                    f"    {arm}: selected {cell_i}/{arm_cells} cells "
+                    f"({done / 60:.0f}m elapsed, ~{eta / 60:.0f}m left)",
+                    flush=True,
+                )
+                last_print = now
 
         # Repair counters, where an arm keeps them. llm_pruner records how often
         # the model named too many passages or too few; an arm that failed to

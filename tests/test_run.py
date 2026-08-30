@@ -1,6 +1,9 @@
-"""The determinism audit. It exists to put a number on the one thing a hosted
-generator cannot promise, so its own failure modes matter more than most."""
+"""The determinism audit and the selection-progress reporting.
 
+The audit exists to put a number on the one thing a hosted generator cannot
+promise, so its own failure modes matter more than most."""
+
+import src.run
 from src.cache import CachedGeneration, GenerationCache
 from src.generate import CachedGenerator, DecodeParams, DummyGenerator
 from src.run import audit_determinism
@@ -91,3 +94,43 @@ def test_audit_deduplicates_before_sampling(tmp_path):
 def test_audit_on_an_empty_grid_is_not_an_error(tmp_path):
     gen = _warm(DummyGenerator(), tmp_path, [])
     assert audit_determinism(gen, [], DecodeParams(), n=5, seed=1)["checked"] == 0
+
+
+# --------------------------------------------------------------------------- #
+# Selection progress
+# --------------------------------------------------------------------------- #
+#
+# `llm_pruner` and `loo_oracle` call the generator once (or n+1 times) per cell,
+# on the one path that does NOT go through CachedGenerator.generate_batch and so
+# gets none of its block reporting. On a rate-limited backend that was half an
+# hour of silence in the middle of a multi-hour run.
+
+
+def _pilot_on_dummy(tmp_path):
+    """The shipped pilot config, shrunk, on the backend that needs no GPU."""
+    cfg = src.run.Config.load("configs/pilot.yaml")
+    cfg.raw["generator"]["backend"] = "dummy"
+    cfg.raw["data"]["n_queries"] = 4
+    cfg.raw["cache"]["path"] = str(tmp_path / "c.sqlite")
+    cfg.raw["output"]["results_dir"] = str(tmp_path / "out")
+    return cfg
+
+
+def test_instant_arms_print_no_selection_progress(tmp_path, capsys):
+    """`full` decides without calling anything, and real time is used here, so
+    the whole run finishes inside one interval. A line per arm regardless would
+    be pure noise in every local run."""
+    src.run.run(_pilot_on_dummy(tmp_path))
+    assert "selected" not in capsys.readouterr().out
+
+
+def test_a_slow_arm_reports_progress_with_an_eta(tmp_path, monkeypatch, capsys):
+    """The case this exists for: cells that take real time must produce a line,
+    so an idle-looking log can be told apart from a hung process."""
+    ticks = iter([i * 40.0 for i in range(500)])
+    monkeypatch.setattr(src.run.time, "time", lambda: next(ticks))
+
+    src.run.run(_pilot_on_dummy(tmp_path))
+    out = capsys.readouterr().out
+    assert "full: selected" in out
+    assert "cells" in out and "left)" in out
