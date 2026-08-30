@@ -108,6 +108,63 @@ def test_audit_on_an_empty_grid_is_not_an_error(tmp_path):
 # hour of silence in the middle of a multi-hour run.
 
 
+# --------------------------------------------------------------------------- #
+# Dummy quarantine
+# --------------------------------------------------------------------------- #
+
+
+def test_dummy_backend_is_quarantined_when_run_is_called_directly():
+    """The regression this exists for. The redirect used to live in main(), so
+    it only covered the CLI -- calling run() directly wrote hash noise into a
+    real results directory under a name indistinguishable from real output."""
+    cfg = src.run.Config.load("configs/replication.yaml")
+    cfg.raw["generator"]["backend"] = "dummy"
+    real_dir = cfg["output"]["results_dir"]
+
+    src.run.quarantine_dummy(cfg)
+
+    assert cfg["output"]["results_dir"] == real_dir + "_dummy"
+    assert cfg["cache"]["path"] == "cache/dummy.sqlite"
+
+
+def test_quarantine_is_idempotent():
+    """main() sets the backend and run() quarantines, so a CLI invocation passes
+    through twice. It must not become results/x_dummy_dummy."""
+    cfg = src.run.Config.load("configs/pilot.yaml")
+    cfg.raw["generator"]["backend"] = "dummy"
+
+    src.run.quarantine_dummy(cfg)
+    once = cfg["output"]["results_dir"]
+    src.run.quarantine_dummy(cfg)
+
+    assert cfg["output"]["results_dir"] == once
+    assert once.count("_dummy") == 1
+
+
+def test_quarantine_leaves_real_backends_alone():
+    cfg = src.run.Config.load("configs/main.yaml")
+    before = (cfg["output"]["results_dir"], cfg["cache"]["path"])
+
+    src.run.quarantine_dummy(cfg)
+
+    assert (cfg["output"]["results_dir"], cfg["cache"]["path"]) == before
+
+
+def test_quarantine_does_not_hijack_an_explicit_cache_path(tmp_path):
+    """Steering dummy rows out of the SHARED cache is hygiene; overriding a path
+    the caller chose deliberately would break test isolation and silently write
+    into the repo. The results-dir suffix still applies -- that one is safety."""
+    cfg = src.run.Config.load("configs/pilot.yaml")
+    cfg.raw["generator"]["backend"] = "dummy"
+    mine = str(tmp_path / "mine.sqlite")
+    cfg.raw["cache"]["path"] = mine
+
+    src.run.quarantine_dummy(cfg)
+
+    assert cfg["cache"]["path"] == mine
+    assert cfg["output"]["results_dir"].endswith("_dummy")
+
+
 def _pilot_on_dummy(tmp_path):
     """The shipped pilot config, shrunk, on the backend that needs no GPU."""
     cfg = src.run.Config.load("configs/pilot.yaml")

@@ -44,6 +44,10 @@ TEMPLATES = {"default": DEFAULT_TEMPLATE, "alt": ALT_TEMPLATE}
 #: never looks hung.
 SELECTION_PROGRESS_S = 30.0
 
+#: The cache every shipped config points at. `quarantine_dummy` steers dummy
+#: runs away from this one and leaves any other path untouched.
+SHARED_CACHE = "cache/generations.sqlite"
+
 
 @dataclass
 class Config:
@@ -116,8 +120,44 @@ def decode_params(cfg: Config) -> DecodeParams:
     return params
 
 
+def quarantine_dummy(cfg: Config) -> None:
+    """Redirect dummy-backend output away from the real cache and results dir.
+
+    `DummyGenerator` returns a hash of the prompt. Its numbers are meaningless by
+    construction, so they must never land where a real result is expected.
+
+    This used to live in `main()`, which meant the guard only covered the CLI.
+    Calling `run()` directly with a dummy backend -- which the tests do, and
+    which is the natural way to drive it from a notebook -- wrote hash noise into
+    the genuine results directory under a name indistinguishable from real
+    output. That happened: `results/replication_groq/` was populated with dummy
+    rows whose `llm_pruner` stats read `under_selected_rate: 1.0`, because the
+    dummy answers parse as no passage numbers at all.
+
+    Idempotent, so a config that has already been redirected is not suffixed
+    twice.
+    """
+    if cfg["generator"].get("backend") != "dummy":
+        return
+
+    out = cfg["output"]["results_dir"]
+    if not out.endswith("_dummy"):
+        cfg.raw["output"]["results_dir"] = out + "_dummy"
+
+    # The cache redirect is hygiene rather than safety, and so is conditional.
+    # Dummy rows cannot corrupt a real result -- cache_key hashes the model name
+    # and DummyGenerator's is "dummy" -- they would just be clutter in the
+    # shared file. So redirect only the shared default, and leave an explicitly
+    # chosen path alone: a caller that named its own cache (a test using tmp_path,
+    # say) meant it, and silently overriding that would break isolation.
+    if cfg["cache"]["path"] == SHARED_CACHE:
+        cfg.raw["cache"]["path"] = "cache/dummy.sqlite"
+
+
 def run(cfg: Config) -> Path:
     """Execute the full (query, arm, budget, permutation) grid and write rows."""
+    # Before anything reads the cache path or the results dir.
+    quarantine_dummy(cfg)
     data_cfg = cfg["data"]
     examples = load_dataset(
         name=data_cfg["dataset"],
@@ -471,9 +511,8 @@ def main() -> None:
         cfg.raw["arms"] = args.arms
     if args.backend:
         cfg.raw["generator"]["backend"] = args.backend
-        if args.backend == "dummy":
-            cfg.raw["cache"]["path"] = "cache/dummy.sqlite"
-            cfg.raw["output"]["results_dir"] += "_dummy"
+        # The dummy redirect is not done here any more -- `run()` does it, so it
+        # covers every caller and not just this one. See quarantine_dummy.
     if args.n is not None:
         cfg.raw["data"]["n_queries"] = args.n
     if args.audit is not None:
