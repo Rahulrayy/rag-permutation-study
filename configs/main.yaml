@@ -22,24 +22,37 @@ generator:
   # blanking during runs was Windows TDR resetting the display driver, not an
   # OOM; TdrDelay is now raised to 10s machine-wide, which fixed it at the root.
   #
-  # Re-benchmarked on 8 real prompts (median 1,520 tokens) after that change:
+  # Benchmarked on 8 real prompts (median 1,520 tokens):
   #
   #     batch 1   1.08 s/gen   peak 2.66 GB
-  #     batch 2   0.82 s/gen   peak 2.50 GB
-  #     batch 4   0.78 s/gen   peak 2.91 GB   <- chosen
+  #     batch 2   0.82 s/gen   peak 2.50 GB   <- chosen
+  #     batch 4   0.78 s/gen   peak 2.91 GB
   #     batch 8   0.72 s/gen   peak 3.75 GB
   #
-  # Batching buys much less than expected -- 1.5x from 1 to 8, and almost all of
-  # it by batch 2. Batch 4 takes ~92% of the available speedup for 0.84 GB less
-  # peak than batch 8, so it is the better trade on a GPU that also drives the
-  # screen. (The old note here claimed batch 8 would OOM. It does not.)
-  batch_size: 4
+  # WAS 4, changed to 2 on 2026-08-30 after batch 4 raised
+  # torch.OutOfMemoryError partway into the real grid. The cap did its job --
+  # a clean OOM rather than a display crash -- but the run died.
+  #
+  # The benchmark above under-sampled context length: 8 prompts at a median of
+  # 1,520 tokens does not reach the longest cells in the grid, and on those a
+  # single attention allocation asked for 970 MB and pushed past the ceiling.
+  # Batch 2 is also the LOWEST-memory row in that table (2.50 GB against 2.91),
+  # so this costs ~5% throughput and buys the run finishing.
+  #
+  # Verified: 20+ minutes of sustained generation at batch 2 with VRAM flat and
+  # no OOM.
+  batch_size: 2
   # Small pause is cheap insurance for the compositor now that TDR is the real
-  # fix rather than the workaround: ~3% of runtime at batch 4.
+  # fix rather than the workaround: ~3% of runtime.
   batch_pause_s: 0.1
   # Hard ceiling, so overrunning is a clean CUDA OOM rather than a display
-  # crash. 0.7 = 4.5 GB, comfortably above the 2.91 GB peak measured above.
-  max_vram_fraction: 0.7
+  # crash. 0.75 = 4.8 GB, well above the 2.50 GB peak at batch 2, and the value
+  # the 20-minute verification above actually ran at.
+  #
+  # Note this is a fraction of TOTAL VRAM, not free. Browsers hold real GPU
+  # memory -- Chrome, Edge, PyCharm and Spotify together took ~3.5 GB during the
+  # failed batch-4 run -- so close them before a long job on a 6 GB card.
+  max_vram_fraction: 0.75
 
 arms:
   - full

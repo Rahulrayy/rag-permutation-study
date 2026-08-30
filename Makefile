@@ -17,8 +17,19 @@ gate:
 	$(PY) -m src.gate results/pilot_w1/generations.csv
 
 # Do not run before ANALYSIS_PLAN.md is filled in and committed.
+# ~11h on this laptop: ~8h generating plus ~3h of oracle scoring, which all
+# happens in the selection phase before the first generation. Fully resumable --
+# both generations and the oracle's score() calls go through the same cache, so
+# re-running after an interruption continues where it stopped.
+#
+# Close browsers first. max_vram_fraction is a fraction of TOTAL VRAM, and
+# Chrome/Edge/PyCharm hold real GPU memory on a 6 GB card.
+#
+# expandable_segments stops allocator fragmentation from pushing a long run over
+# the cap; it is what the OOM message itself recommends.
 main:
-	$(PY) -m src.run --config configs/main.yaml
+	PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+	  $(PY) -m src.run --config configs/main.yaml
 
 # The oracle, split out so it can run in its own session: it needs (n+1) x P
 # scored passes per query, and every arm's selection completes before any
