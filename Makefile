@@ -1,7 +1,7 @@
 # NOTE: make is not installed on this machine; see README for raw equivalents.
 PY := .venv/Scripts/python.exe
 
-.PHONY: smoke pilot gate main oracle replication replication-xfamily audit figures test clean
+.PHONY: smoke pilot gate main oracle main-no-oracle replication replication-xfamily audit figures test clean
 
 # Verify CUDA, checkpoint load, greedy determinism and answer log-probs.
 # Run this before burning an overnight on the main grid.
@@ -20,8 +20,21 @@ gate:
 main:
 	$(PY) -m src.run --config configs/main.yaml
 
+# The oracle, split out so it can run in its own session: it needs (n+1) x P
+# scored passes per query, and every arm's selection completes before any
+# generation starts, so bundling it delays the whole grid by hours.
+#
+# `nocontext` is in the list because it has to be. main.yaml sets
+# memorization_filter, the filter needs nocontext's predictions, and run.py
+# raises without them. It costs nothing -- those generations are already cached.
 oracle:
-	$(PY) -m src.run --config configs/main.yaml --arms loo_oracle
+	$(PY) -m src.run --config configs/main.yaml --arms nocontext loo_oracle
+
+# The complement: everything except the oracle. Use these two when a session is
+# too short for the whole grid; the cache makes the split free.
+main-no-oracle:
+	$(PY) -m src.run --config configs/main.yaml --arms nocontext full rerank_topk \
+	  provence_rerank provence_full llmlingua2 llm_pruner random_drop placebo_pos
 
 # Week-5 cross-generator check on Groq. Needs GROQ_API_KEY (repo-root .env);
 # runs on CPU only, so it is the one long job that does not want the GPU.
