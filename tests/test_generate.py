@@ -268,7 +268,12 @@ def test_groq_paces_off_the_remaining_token_header(monkeypatch):
     assert backend.generate("p", params).text == "first"
     assert slept == []  # nothing known yet on the first call
     assert backend.generate("q", params).text == "second"
-    assert slept == [12.0]  # 80 remaining cannot cover cost + 500 headroom
+    # 80 remaining cannot cover cost + 500 headroom, so it waits for the reset.
+    # Approximate, not exact: the pacer sleeps `_reset_at - monotonic()`, and a
+    # few microseconds elapse between those two reads. Windows' ~15ms monotonic
+    # granularity rounds that away and Linux's nanosecond clock does not, so an
+    # `== [12.0]` here passes locally and fails on Colab.
+    assert slept == [pytest.approx(12.0, abs=0.1)]
     assert backend.budget.waits == 1
 
 
