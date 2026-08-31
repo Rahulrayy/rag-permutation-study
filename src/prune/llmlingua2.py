@@ -93,22 +93,33 @@ DEFAULT_MODEL = "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank"
 #     0.50    16                  20
 #
 # At k=2 the arm was handing the generator ',., 3. 59 kilometres. Heritage.,,.'
-# -- two content words out of fifty-one, and mostly punctuation. Downstream,
-# 42.9% of this arm's predictions were the bare string "no" (against 2.3% for
-# `full`), and the rate was dose-dependent in the compression rate: 45.6% at
-# k=2 falling to 35.0% at k=5. The arm scored below `nocontext`, which is what
-# prompted the check.
-#
-# The 42.9% is worth reading against the whole grid rather than `full` alone:
-# "no" is what this generator falls back on whenever the context does not help,
-# so the placebo and random arms sit at 41-46% and `nocontext` at 37%. The point
-# is that llmlingua2 sat in *that* band while keeping both gold chunks, not that
-# a bare "no" is pathological on its own. See
-# results/main_hotpotqa/_pre_llmlingua2_fix/arm_summary.csv.
+# -- two content words out of fifty-one, and mostly punctuation.
 #
 # So the original setting traded a bag of words for a bag of punctuation. The
 # upstream default is not free of the problem it was meant to solve -- its
 # output is still unpunctuated -- but it spends the whole budget on content.
+# Measured effect of the change, same 274 queries, same budgets:
+# EM 0.0550 -> 0.0608, F1 0.0903 -> 0.0970. Real, and small.
+#
+# WHAT PROMPTED THE CHECK WAS A MISREADING, recorded here because the first
+# version of this comment asserted it as fact. The claim was "the arm scores
+# below the nocontext floor." It does not, and never did. `nocontext` is
+# reported over all 300 sampled queries; every other arm is reported over the
+# 274 that survive the memorization filter. Those are different populations,
+# and the filter is *defined* as dropping the queries the generator can answer
+# with no context -- so on the 274 actually studied, nocontext EM is 0.0000 by
+# construction. The comparison that looked alarming (0.055 against 0.087) was
+# reading one arm's mean against another arm's population.
+#
+# Anyone aggregating these arms should take that as the standing warning: the
+# nocontext row is not commensurable with the rest of the grid as written, and
+# any table putting them in the same column needs the floor recomputed on the
+# studied qids.
+#
+# The change below is therefore justified on the content-word measurement
+# alone, which is reproducible and stands on its own. It is not justified by
+# the anomaly it was originally credited with fixing, because there was no
+# anomaly. See commit df8ab6b for the version of this reasoning that was wrong.
 #
 # Aggregates from before this change are tracked in
 # results/main_hotpotqa/_pre_llmlingua2_fix/ (arm_summary.csv and

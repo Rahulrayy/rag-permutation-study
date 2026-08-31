@@ -1,0 +1,27 @@
+{
+  "llm_pruner": {
+    "cells": 822,
+    "out_of_range": 1,
+    "over_selected": 2,
+    "under_selected": 200,
+    "under_selected_rate": 0.24330900243309003,
+    "unparseable": 28
+  },
+  "loo_oracle": {
+    "boundary_tie_rate": 0.2360097323600973,
+    "boundary_ties": 194,
+    "cells": 822,
+    "degenerate": 6,
+    "degenerate_rate": 0.021897810218978103,
+    "gold_recall": 0.6940389294403893,
+    "max_drop": 123.54148292541504,
+    "mean_baseline_logprob": -7.086347158369805,
+    "mean_drop": 1.2849871611547397,
+    "mean_order_jaccard": 0.1711833314023095,
+    "mean_within_query_spread": 15.732304283597413,
+    "median_drop": 0.008064351754046583,
+    "min_drop": -13.636613941192627,
+    "negative_drop_rate": 0.4576642335766423,
+    "queries_scored": 274
+  }
+}

@@ -1,12 +1,25 @@
 {
-  "budget_and_recall_were_correct": {
-    "llmlingua2_context_chars_median": 1381.0,
-    "llmlingua2_n_gold_kept_mean": 2,
-    "note": "the failure was not retrieval or budget matching",
-    "rerank_topk_context_chars_median": 1381.5,
-    "rerank_topk_n_gold_kept_mean": 1.591241
+  "by_budget_after": {
+    "2": {
+      "compression_rate": 0.2,
+      "em_mean": 0.045985,
+      "n": 1370,
+      "pred_no_rate": 0.476642
+    },
+    "3": {
+      "compression_rate": 0.3,
+      "em_mean": 0.061314,
+      "n": 1370,
+      "pred_no_rate": 0.411679
+    },
+    "5": {
+      "compression_rate": 0.5,
+      "em_mean": 0.075182,
+      "n": 1370,
+      "pred_no_rate": 0.371533
+    }
   },
-  "by_budget": {
+  "by_budget_before": {
     "2": {
       "compression_rate": 0.2,
       "em_mean": 0.043796,
@@ -26,30 +39,10 @@
       "pred_no_rate": 0.350365
     }
   },
-  "by_hop_type": {
-    "bridge": {
-      "em_mean": 0.044915,
-      "n": 3540
-    },
-    "comparison": {
-      "em_mean": 0.117544,
-      "n": 570
-    }
-  },
-  "content_word_probe": {
-    "chunk_content_words": 51,
-    "example_output_at_rate_0.20": ",., 3. 59 kilometres. Heritage.,,.",
-    "note": "one chunk of 51 content words, compressed at each rate, varying only force_tokens",
-    "upstream_default": {
-      "0.20": 8,
-      "0.30": 11,
-      "0.50": 20
-    },
-    "with_punctuation_forced": {
-      "0.20": 2,
-      "0.30": 8,
-      "0.50": 16
-    }
+  "changed_on": "2026-08-31",
+  "commits": {
+    "change": "df8ab6b",
+    "correction": "see git log after 52276b6"
   },
   "force_tokens_after": [
     "\n",
@@ -61,14 +54,56 @@
     ".",
     ","
   ],
-  "full_pred_no_rate": 0.023358,
   "generator": "Qwen/Qwen2.5-3B-Instruct",
-  "llmlingua2_em_mean": 0.054988,
-  "llmlingua2_f1_mean": 0.090287,
-  "llmlingua2_pred_no_rate": 0.428954,
-  "n_queries_after_memorization_filter": 274,
-  "nocontext_em_mean": 0.086667,
-  "run_date": "2026-08-31",
-  "symptom": "arm scored below the nocontext floor",
-  "what": "State of the llmlingua2 arm BEFORE the force_tokens change (see src/prune/llmlingua2.py, commit df8ab6b). Kept so the deviation is auditable from the repo alone; the raw generations.csv is gitignored per plan Sec. 6 and is reproducible from the generation cache."
+  "justification": {
+    "chunk_content_words": 51,
+    "example_output_at_rate_0.20": ",., 3. 59 kilometres. Heritage.,,.",
+    "measured_effect_of_the_change": {
+      "em": [
+        0.054988,
+        0.060827
+      ],
+      "f1": [
+        0.090287,
+        0.096976
+      ]
+    },
+    "stands": "content-word measurement: one 51-content-word chunk, compressed at each rate, varying only force_tokens",
+    "upstream_default": {
+      "0.20": 8,
+      "0.30": 11,
+      "0.50": 20
+    },
+    "with_punctuation_forced": {
+      "0.20": 2,
+      "0.30": 8,
+      "0.50": 16
+    }
+  },
+  "pred_no_rate_context": {
+    "full_after": 0.023358,
+    "llmlingua2_after": 0.419951,
+    "llmlingua2_before": 0.428954,
+    "note": "'no' is this generator's fallback when context does not help; it is not pathological on its own. Placebo and random arms sit in the same band.",
+    "random_drop_after": 0.441849
+  },
+  "retracted_claim": {
+    "claim": "the llmlingua2 arm scored below the nocontext floor",
+    "llmlingua2_em_after": 0.060827,
+    "llmlingua2_em_before": 0.054988,
+    "nocontext_em_all_300_qids": 0.086667,
+    "nocontext_em_studied_274_qids": 0.0,
+    "status": "FALSE - it did not, before or after the change",
+    "why_it_looked_true": "nocontext is reported over all 300 sampled queries; every other arm over the 274 surviving the memorization filter. The filter is defined as dropping queries the generator can answer with no context, so on the studied 274 the nocontext floor is 0.0 by construction. 0.055 was being compared against a different population."
+  },
+  "standing_warning": "The nocontext row is not commensurable with the rest of the grid as written. Any table placing them in one column must recompute the floor on the studied qids (see arm_summary.csv, row 'nocontext@studied').",
+  "surviving_finding": {
+    "llmlingua2_context_chars_median": 1643.0,
+    "llmlingua2_em": 0.060827,
+    "llmlingua2_n_gold_kept_mean": 2,
+    "random_drop_em": 0.13382,
+    "rerank_topk_context_chars_median": 1381.5,
+    "statement": "At matched token budget on matched queries, llmlingua2 scores below random_drop -- a published compression method losing to deleting chunks at random. It retains both gold chunks every time, so this is not a retrieval failure: token-level compression shreds the entity strings exact match depends on, while random_drop keeps survivors intact."
+  },
+  "what": "The llmlingua2 force_tokens deviation: what changed, what it was originally credited with fixing, and the correction to that claim. Raw generations.csv is gitignored per plan Sec. 6 and is reproducible from the generation cache."
 }
