@@ -14,8 +14,7 @@
 # every `generator` key except the three below. In particular `quantization:
 # 4bit` -- a T4 has room for fp16 and it would be faster, but quantization
 # changes the generations, so a main run at fp16 is not comparable to the pilot
-# in results/pilot_w1/. TRITANIUM.md Step 4 makes the same call for the same
-# reason. ANALYSIS_PLAN Sec. 4 fixes these as registered parameters.
+# in results/pilot_w1/. ANALYSIS_PLAN Sec. 4 fixes these as registered parameters.
 #
 # BEFORE USING THIS FILE
 # ----------------------
