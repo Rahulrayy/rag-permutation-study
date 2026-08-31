@@ -99,12 +99,23 @@ DEFAULT_MODEL = "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank"
 # k=2 falling to 35.0% at k=5. The arm scored below `nocontext`, which is what
 # prompted the check.
 #
+# The 42.9% is worth reading against the whole grid rather than `full` alone:
+# "no" is what this generator falls back on whenever the context does not help,
+# so the placebo and random arms sit at 41-46% and `nocontext` at 37%. The point
+# is that llmlingua2 sat in *that* band while keeping both gold chunks, not that
+# a bare "no" is pathological on its own. See
+# results/main_hotpotqa/_pre_llmlingua2_fix/arm_summary.csv.
+#
 # So the original setting traded a bag of words for a bag of punctuation. The
 # upstream default is not free of the problem it was meant to solve -- its
 # output is still unpunctuated -- but it spends the whole budget on content.
-# Results from before this change are kept in
-# results/main_hotpotqa/_pre_llmlingua2_fix/ and must not be pooled with
-# results from after it.
+#
+# Aggregates from before this change are tracked in
+# results/main_hotpotqa/_pre_llmlingua2_fix/ (arm_summary.csv and
+# llmlingua2_deviation.json), so the deviation is auditable from the repo
+# alone. The raw generations.csv beside them is gitignored per plan Sec. 6 and
+# is reproducible from the generation cache. Do not pool pre-change results
+# with post-change ones.
 FORCE_TOKENS = ["\n", "?"]
 
 _COMPRESSORS: dict[tuple[str, str], Any] = {}
