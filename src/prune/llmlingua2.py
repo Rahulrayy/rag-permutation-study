@@ -76,9 +76,36 @@ from .base import Pruner, validate_rewrite, validate_selection
 # paper's headline model and belongs in the write-up.
 DEFAULT_MODEL = "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank"
 
-# Punctuation the compressor is told to preserve. Without it the output loses
-# sentence boundaries entirely and the generator sees a bag of words.
-FORCE_TOKENS = ["\n", "?", ".", ","]
+# Tokens the compressor is told to preserve. This is the upstream default.
+#
+# DEVIATION FROM THE REGISTERED SETTING, 2026-08-31. This list originally read
+# ``["\n", "?", ".", ","]`` -- the two sentence-punctuation marks were added on
+# the reasoning that "without it the output loses sentence boundaries entirely
+# and the generator sees a bag of words." That reasoning was wrong, and the
+# first full-scale run is what exposed it: forced tokens are charged against the
+# compression budget, so at aggressive rates the punctuation crowds out the
+# content it was meant to punctuate. Same chunk (51 content words), same rates,
+# only this list changed:
+#
+#     rate    with '.' and ','    upstream default
+#     0.20     2 content words     8 content words
+#     0.30     8                  11
+#     0.50    16                  20
+#
+# At k=2 the arm was handing the generator ',., 3. 59 kilometres. Heritage.,,.'
+# -- two content words out of fifty-one, and mostly punctuation. Downstream,
+# 42.9% of this arm's predictions were the bare string "no" (against 2.3% for
+# `full`), and the rate was dose-dependent in the compression rate: 45.6% at
+# k=2 falling to 35.0% at k=5. The arm scored below `nocontext`, which is what
+# prompted the check.
+#
+# So the original setting traded a bag of words for a bag of punctuation. The
+# upstream default is not free of the problem it was meant to solve -- its
+# output is still unpunctuated -- but it spends the whole budget on content.
+# Results from before this change are kept in
+# results/main_hotpotqa/_pre_llmlingua2_fix/ and must not be pooled with
+# results from after it.
+FORCE_TOKENS = ["\n", "?"]
 
 _COMPRESSORS: dict[tuple[str, str], Any] = {}
 
