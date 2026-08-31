@@ -105,6 +105,11 @@ metrics:
   # ANALYSIS_PLAN.md before the main run; the other two are then exploratory.
   placebo_arm: placebo_pos:middle_first
   oracle_arm: loo_oracle
+  # The confirmatory budget, registered in ANALYSIS_PLAN Sec. 2 and 5: the
+  # primary endpoint and the nine-comparison Holm family are both defined at
+  # k=3. Stated here rather than inferred, so src.analyze cannot pick a
+  # different budget if `budgets` is ever reordered.
+  primary_budget: 3
 
 stats:
   bootstrap_replicates: 10000
