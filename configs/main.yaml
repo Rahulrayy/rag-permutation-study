@@ -1,4 +1,17 @@
-# Main run: 300 queries x 8 arms x 3 budgets x 5 permutations = 36,000 generations.
+# Main run. The arithmetic below is what the grid ACTUALLY came to, not the
+# plan's estimate: `placebo_pos` expands to three arms, so this is 11 arms plus
+# `nocontext`, not 8.
+#
+#     274 queries (300 sampled, memorization filter -> 274)
+#       x 11 arms x 3 budgets x 5 permutations           45,210 rows
+#     + nocontext (300 sampled, P=1, no budget)             300 rows
+#                                                        --------
+#                                                        45,510 rows
+#
+# Ran 2026-08-30 to 2026-08-31 across three sittings, plus an `llmlingua2`
+# re-run after the force_tokens change (ANALYSIS_PLAN Sec. 9), at 0.48-0.51
+# s/generation. `full` is generated once and reused across budgets (its prompt
+# ignores k), so the generation count is below the row count.
 # Do not run before ANALYSIS_PLAN.md is filled in and committed.
 name: main_hotpotqa
 
@@ -98,11 +111,11 @@ permutation:
 
 metrics:
   baseline_arm: rerank_topk     # denominator arm for OAE
-  # OPEN (HANDOFF Sec. 8): all three placebo variants run, but only one can be
-  # the confirmatory comparator for H4. middle_first is the default because it
+  # SETTLED at registration (ANALYSIS_PLAN Sec. 1, H4): all three placebo
+  # variants run, and `middle_first` is the confirmatory comparator because it
   # is the shape a lost-in-the-middle-aware pruner produces by accident, which
-  # is the specific confound RQ4 is aimed at. Confirm or change this in
-  # ANALYSIS_PLAN.md before the main run; the other two are then exploratory.
+  # is the specific confound RQ4 is aimed at. `edges_first` and `tail_first`
+  # are exploratory. Changing this now is a protocol deviation, not an edit.
   placebo_arm: placebo_pos:middle_first
   oracle_arm: loo_oracle
   # The confirmatory budget, registered in ANALYSIS_PLAN Sec. 2 and 5: the

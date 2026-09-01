@@ -49,8 +49,9 @@ output.** This is the sharper version of the thesis: not "the score moves" but
 with no passages at all (mean no-context token-F1 0.115), so the effect is not a
 3B model reciting Wikipedia.
 
-*Leave-one-out oracle, the second dataset and the hosted cross-generator
-replication are still to come; see Status.*
+*The leave-one-out oracle has since been built and run at full scale. The
+second dataset and the hosted cross-generator replication are still to come; see
+Status.*
 
 ---
 
@@ -187,12 +188,14 @@ numbers are meaningless by construction), `--n 20` shrinks the question set,
 | `generate.py` — local 4-bit generator, greedy, answer log-probs | done |
 | arms `full` / `nocontext` / `random_drop` / `placebo_pos` (3 variants) | done |
 | arms `rerank_topk` / `provence_rerank` / `provence_full` / `llm_pruner` / `llmlingua2` | done |
-| arm `loo_oracle` | to come |
+| arm `loo_oracle` | done — ran at full scale, n=274 |
+| main run + confirmatory analysis | done — 45,510 rows |
 | 2WikiMultihopQA + hosted cross-generator replication | to come |
 | figures | to come |
 
-**129 tests** pass (`python -m pytest -q`, ~9s). One is marked `network` and
-downloads HotpotQA on first run; `pytest -m "not network"` skips it.
+**200 tests** pass (`python -m pytest -q -m "not network"`, ~17s). Three are
+marked `network` and download HotpotQA on first run; `pytest -m "not network"`
+deselects them.
 
 ## Limitations
 
