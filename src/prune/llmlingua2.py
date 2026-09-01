@@ -65,6 +65,8 @@ another reason the comparison is on tokens.
 
 from __future__ import annotations
 
+import hashlib
+
 from typing import Any, Sequence
 
 from ..chunks import Chunk
@@ -182,10 +184,17 @@ class LLMLingua2(Pruner):
         self.model = model
         self.device = device
         self.min_rate = min_rate
-        # Keyed on (chunk idx, rate): compression depends on the chunk's own
-        # text and the rate, and on nothing else. That independence is the
-        # property measured above, and it is what makes this cache correct.
-        self._cache: dict[tuple[int, float], str] = {}
+        # Keyed on (hash of the chunk's text, rate). Compression depends on the
+        # chunk's own text and the rate and on nothing else, which is exactly
+        # why the key must BE the text.
+        #
+        # This was previously keyed on (chunk idx, rate), which is wrong in a way
+        # that is invisible on a single query and silently corrupts every run
+        # longer than one: `run.py` is arm-major, so one instance serves every
+        # query, and idx 0..9 with rate k/10 gives only ~30 distinct keys for the
+        # whole arm. Query 2 onwards therefore received query 1's compressed
+        # passages. See ANALYSIS_PLAN Sec. 9, 2026-09-01.
+        self._cache: dict[tuple[str, float], str] = {}
 
     def rate_for(self, budget: int, n_chunks: int) -> float:
         """Budget k over n chunks -> per-chunk rate k/n, so total tokens land
@@ -201,8 +210,11 @@ class LLMLingua2(Pruner):
         kept = [c.idx for c in sorted(chunks, key=lambda c: c.rank)]
         return validate_selection(kept, chunks, len(chunks))
 
-    def _compress(self, text: str, rate: float, idx: int) -> str:
-        key = (idx, round(rate, 4))
+    def _compress(self, text: str, rate: float) -> str:
+        # The chunk index is deliberately NOT part of this key: it does not
+        # affect the output, and using it made two different chunks that happen
+        # to share a slot collide.
+        key = (hashlib.sha256(text.encode("utf-8")).hexdigest(), round(rate, 4))
         if key in self._cache:
             return self._cache[key]
         if not text.strip():
@@ -231,7 +243,7 @@ class LLMLingua2(Pruner):
             Chunk(
                 idx=c.idx,
                 title=c.title,
-                text=self._compress(c.text, rate, c.idx),
+                text=self._compress(c.text, rate),
                 rank=c.rank,
                 is_gold=c.is_gold,
                 meta={**c.meta, "llmlingua2_rate": rate},

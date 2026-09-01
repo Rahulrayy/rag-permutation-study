@@ -716,3 +716,50 @@ def test_oracle_does_not_rewrite_content(chunks):
     p, _ = _oracle({2: 5.0})
     kept = [c for c in chunks if c.idx in p.select("q", chunks, 3)]
     assert p.rewrite("q", kept, 3) == kept
+
+
+def test_llmlingua2_does_not_alias_chunks_across_queries(stub_lingua):
+    """Two different passages in the same slot must not share compressed text.
+
+    Regression for a defect that silently invalidated a whole arm. `run.py` is
+    arm-major: one pruner instance serves every query in the run. The cache was
+    keyed on (chunk idx, rate), and rate is k/n which is constant across
+    queries, so the arm had only ~30 distinct keys for the entire dataset.
+    Query 2 onward received query 1's compressed passages, while `n_gold_kept`
+    kept reporting the correct count because it reads chunk metadata rather
+    than text. That combination is what makes it invisible: the arm looks like
+    it retained the gold passages and simply answered badly.
+
+    One query's chunks are not enough to catch it. The test has to reuse a slot
+    across two different queries, which is what the run does.
+    """
+    from src.chunks import Chunk
+
+    query_a = [Chunk(idx=i, title=f"a{i}", text=f"alpha passage {i} " * 12, rank=i)
+               for i in range(10)]
+    query_b = [Chunk(idx=i, title=f"b{i}", text=f"bravo passage {i} " * 12, rank=i)
+               for i in range(10)]
+
+    pruner = get_pruner("llmlingua2")
+    out_a = pruner.rewrite("question a", query_a, 3)
+    out_b = pruner.rewrite("question b", query_b, 3)
+
+    # Every compressed passage must derive from its own source, not the slot's
+    # first occupant.
+    for chunk, compressed in zip(query_b, out_b):
+        assert "bravo" in compressed.text, (
+            f"chunk {chunk.idx} of the second query came back as "
+            f"{compressed.text!r}, which is the first query's content"
+        )
+    assert [c.text for c in out_a] != [c.text for c in out_b]
+    # 20 distinct passages, so 20 compressions: the cache must not have
+    # collapsed the second query onto the first.
+    assert len(stub_lingua.calls) == 20
+
+
+def test_llmlingua2_still_memoizes_identical_text(stub_lingua, chunks):
+    """The fix must not throw the cache away: identical text is compressed once."""
+    pruner = get_pruner("llmlingua2")
+    pruner.rewrite("q", chunks, 3)
+    pruner.rewrite("a different query", chunks, 3)   # same text, same rate
+    assert len(stub_lingua.calls) == 10

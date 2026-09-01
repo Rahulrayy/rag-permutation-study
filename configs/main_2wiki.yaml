@@ -94,10 +94,26 @@ budgets: [2, 3, 5]
 arm_params:
   rerank_topk:
     model: cross-encoder/ms-marco-MiniLM-L-6-v2
+  # MEASURED 2026-09-01, and the reason the first 2Wiki attempt OOM'd.
+  # Provence is DeBERTa-v2, whose disentangled attention is quadratic in
+  # sequence length, and 2Wiki's longest single passage is 5,658 chars against
+  # HotpotQA's 2,963. Worse, the encoder weights are ~1.6 GB and they stay
+  # resident: with Qwen (1.93), the cross-encoder (0.09), Provence (1.62) and
+  # LLMLingua-2 (0.66) all on the card, 4.30 GB of weights leave nothing for
+  # generation and the run dies whatever the batch size.
+  #
+  # Selection is cached per query, so it runs 300 times against generation's
+  # ~45,000. Moving it to CPU costs ~67 min once and hands the whole GPU to
+  # generation. batch_size 4 rather than the default 32 because one long
+  # passage pads the whole batch.
   provence_rerank:
     threshold: 0.1
+    device: cpu
+    batch_size: 4
   provence_full:
     threshold: 0.1
+    device: cpu
+    batch_size: 4
   # placebo_pos takes no arm_params: the runner expands the bare name into
   # placebo_pos:middle_first / :edges_first / :tail_first, one arm each, and
   # each appears under its own name in generations.csv. To run a single variant,
@@ -110,6 +126,9 @@ arm_params:
     # bert-base rather than xlm-roberta-large: 0.71 GB against 2.2 on a 6 GB
     # card. A deviation from the paper's headline model; state it in the write-up.
     model: microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank
+    # CPU for the same reason as Provence: 0.66 GB of resident weights bought
+    # nothing on a 6 GB card. ~24 min on CPU across the whole run, one-off.
+    device: cpu
 
 permutation:
   n_permutations: 5
