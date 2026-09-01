@@ -18,17 +18,25 @@ which is what a normal implementation does implicitly. Varying it and measuring
 how much the selection moves is a robustness check the study is uniquely set up
 to run -- see ``selection_stability`` below.
 
-**Measured, Qwen2.5-3B-Instruct, 20 HotpotQA queries, k=3, greedy**, selection
-Jaccard across three presentations (as-given / reverse / random):
+**Measured, Qwen2.5-3B-Instruct, 100 HotpotQA queries, k=3, greedy**, selection
+Jaccard across three presentations (as-given / reverse / random). Re-run at
+n=100 on 2026-09-01 by `src.selection_probe`; the original n=20 figure is below
+it, and reproduces:
 
-    perfectly order-invariant selector       1.000   (rerank_topk, provence:
-                                                      they score independently)
-    observed: llm_pruner                     0.263
-    chance: three random 3-subsets of 10     0.048
+    order-invariant reference (rerank_topk)  1.000   measured through the same
+                                                     permutations, not assumed
+    observed: llm_pruner                     0.213   (n=20 prefix: 0.263)
+    chance: three random 3-subsets of 10     0.047
 
-**The selection changed in 19 of 20 queries.** 0.263 is well above chance, but
-it is only ~23% of the way from re-drawing at random to being a function of the
-content. Gold recall was 72% at k=3, against 90% for `rerank_topk` and 85% for
+**The selection changed in 98 of 100 queries, and in 23 of them the three
+presentations selected sets with no passage in common at all.** 0.213 is well
+above chance, but it is only ~17% of the way from re-drawing at random to being
+a function of the content.
+
+The n=20 population is a strict prefix of the n=100 one (subsampling is nested),
+so the 2026-08-29 numbers are recomputed on exactly their own queries and come
+back 0.2625 with 19 of 20 changed -- the original 0.263 and 19/20. The larger
+sample lowers the estimate; prefer the n=100 figure and say which is which. Gold recall was 72% at k=3, against 90% for `rerank_topk` and 85% for
 `provence_rerank`; the model also failed to name three passages in 10% of cells.
 
 This is the study's own thesis landing on the pruner. A published LLM-pruner

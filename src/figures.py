@@ -452,11 +452,116 @@ def fig_rq3_rank_flip(analysis: Mapping[str, Any], budgets: Sequence[str]) -> An
 
 
 # --------------------------------------------------------------------------- #
+# The selection-stability probe -- the thesis applied to the pruner
+# --------------------------------------------------------------------------- #
+
+def fig_selection_stability(probe: Mapping[str, Any]) -> Any:
+    """Where an LLM pruner's selection sits between chance and order-invariance.
+
+    Both reference points are earned rather than assumed: the upper one is
+    `rerank_topk` measured through the same permutations, the lower one is
+    simulated random k-subsets. Without them a Jaccard of ~0.26 is unreadable --
+    the finding is that it is far above chance and nowhere near invariant, which
+    is a statement about two numbers this figure has to show.
+
+    Drawn as bars on the observed values rather than as a smooth histogram: with
+    k of n, the Jaccard of three sets can only take a handful of rational values,
+    and a smooth density would invent a continuum that does not exist.
+    """
+    per_query = probe["per_query"]
+    summary = probe["summary"]
+    chance = probe["chance"]["mean"]
+    reference = probe["reference_order_invariant"]["mean_jaccard"]
+    cfg = probe["config"]
+    values = np.array([r["jaccard"] for r in per_query], dtype=float)
+
+    fig, (ax_dist, ax_scale) = plt.subplots(
+        2, 1, figsize=(8.6, 6.4), gridspec_kw={"height_ratios": [2.6, 1.0]}
+    )
+
+    # --- top: the distribution over queries -------------------------------- #
+    uniq, counts = np.unique(np.round(values, 6), return_counts=True)
+    ax_dist.bar(uniq, counts, width=0.022, color=COLORS["method"], edgecolor="white")
+    ax_dist.axvline(chance, color=COLORS["control"], linewidth=1.6, linestyle=":",
+                    label=f"chance, {len(cfg['orders'])} random {cfg['budget']}-subsets  {chance:.3f}")
+    ax_dist.axvline(summary["mean_jaccard"], color=COLORS["primary"], linewidth=1.8,
+                    label=f"observed mean  {summary['mean_jaccard']:.3f}")
+    ax_dist.axvline(reference, color=COLORS["reference"], linewidth=1.6, linestyle="--",
+                    label=f"{cfg['reference_arm']}, measured  {reference:.3f}")
+    # The sharpest fact in the distribution, and the one a reader skims past:
+    # a Jaccard of exactly 0 means the three presentations selected three sets
+    # with no passage in common at all.
+    n_disjoint = int((values == 0).sum())
+    if n_disjoint:
+        ax_dist.annotate(
+            f"{n_disjoint} queries: the three\nselections share no\npassage at all",
+            xy=(0.0, n_disjoint), xycoords="data",
+            xytext=(0.42, 0.60), textcoords="axes fraction",
+            fontsize=9, color="#444444",
+            arrowprops=dict(arrowstyle="->", color="#999999", linewidth=1.0,
+                            connectionstyle="arc3,rad=-0.2"),
+        )
+
+    ax_dist.set_xlim(-0.04, 1.06)
+    ax_dist.set_xlabel("selection Jaccard across the three presentation orders, per query")
+    ax_dist.set_ylabel("queries")
+    ax_dist.legend(frameon=False, fontsize=8.5, loc="upper center")
+    ax_dist.set_title(
+        f"The pruner picks different passages when shown the same passages in a different order\n"
+        f"{cfg['model']}, n={summary['n']} queries, k={cfg['budget']}, greedy — "
+        f"the selection changed in {summary['n_changed']} of {summary['n']}",
+        loc="left", fontsize=10.5,
+    )
+    _style(ax_dist)
+    ax_dist.grid(True, axis="y", color="#DDDDDD", linewidth=0.6)
+
+    # --- bottom: how far it travelled from chance to content-determined ----- #
+    travelled = (summary["mean_jaccard"] - chance) / (reference - chance) if reference > chance else float("nan")
+    ax_scale.hlines(0, chance, reference, color="#CCCCCC", linewidth=6, zorder=0)
+    ax_scale.hlines(0, chance, summary["mean_jaccard"], color=COLORS["primary"], linewidth=6, zorder=1)
+    for x, label, color in (
+        (chance, f"chance\n{chance:.3f}", COLORS["control"]),
+        (summary["mean_jaccard"], f"observed\n{summary['mean_jaccard']:.3f}", COLORS["primary"]),
+        (reference, f"order-invariant\n{reference:.3f}", COLORS["reference"]),
+    ):
+        ax_scale.plot([x], [0], marker="o", markersize=8, color=color, zorder=2)
+        ax_scale.annotate(label, (x, 0), textcoords="offset points", xytext=(0, -30),
+                          ha="center", fontsize=9, color=color)
+    ax_scale.annotate(
+        f"{travelled:.0%} of the way from redrawing at random\nto being determined by the content",
+        (summary["mean_jaccard"], 0), textcoords="offset points", xytext=(0, 22),
+        ha="center", fontsize=9.5, color=COLORS["primary"],
+    )
+    ax_scale.set_xlim(-0.04, 1.06)
+    ax_scale.set_ylim(-0.85, 0.75)
+    ax_scale.set_yticks([])
+    for side in ("top", "right", "left", "bottom"):
+        ax_scale.spines[side].set_visible(False)
+    ax_scale.set_xticks([])
+
+    fig.text(
+        0.005, 0.005,
+        "A robustness check, outside the registered confirmatory family. LLM order-sensitivity is "
+        "well established in the in-context-learning and\nmultiple-choice literature; the claim here is "
+        "narrower — that the known effect reaches into a pruner's selection, and that no published "
+        "LLM-pruner\nevaluation controls for it.",
+        fontsize=7.5, color="#555555", ha="left", va="bottom",
+    )
+    fig.tight_layout(rect=(0, 0.075, 1, 1))
+    return fig
+
+
+# --------------------------------------------------------------------------- #
 # Driver
 # --------------------------------------------------------------------------- #
 
 #: Figure name -> the RQ it answers. `--only` takes these names.
-FIGURE_NAMES = ("rq1", "rq2", "rq3", "rq4")
+#:
+#: `selection` is drawn from `selection_stability.json`, which the main run does
+#: not produce -- it needs `python -m src.selection_probe` and a GPU. Asking for
+#: it explicitly and not having it is an error; drawing "everything" without it
+#: is a visible skip, because it is an optional artifact rather than a broken one.
+FIGURE_NAMES = ("rq1", "rq2", "rq3", "rq4", "selection")
 
 
 def make_figures(
@@ -519,6 +624,24 @@ def make_figures(
         save(fig_rq3_rank_flip(analysis, budgets), "rq3_rank_flip_rate")
     if "rq4" in wanted:
         save(fig_rq4_placebo_gap(analysis, budgets), "rq4_placebo_gap")
+
+    if "selection" in wanted:
+        probe_path = results_dir / "selection_stability.json"
+        if probe_path.exists():
+            with open(probe_path, "r", encoding="utf-8") as fh:
+                save(fig_selection_stability(json.load(fh)), "selection_stability")
+        elif only:
+            raise FileNotFoundError(
+                f"{probe_path} not found -- run "
+                f"`python -m src.selection_probe --config ...` first (needs the GPU); "
+                f"this one is not produced by the main run"
+            )
+        else:
+            print(
+                f"  skipped selection_stability: no {probe_path.name} "
+                f"(run `python -m src.selection_probe --config ...`)",
+                flush=True,
+            )
 
     return written
 

@@ -35,10 +35,11 @@ output.** This is the sharper version of the thesis: not "the score moves" but
 
 - **An LLM asked which passages to keep picks different ones when shown the same
   passages in a different order.** Selection Jaccard across three presentations is
-  **0.263** — against 1.000 for a selector that scores passages independently, and
-  0.048 for chance. **The selection changed in 19 of 20 questions.** So a
-  published LLM-pruner result is one draw from a distribution over selections that
-  its paper does not mention.
+  **0.213** over 100 questions — against **1.000** for a cross-encoder scored
+  through the same permutations, and **0.047** for chance. **The selection changed
+  in 98 of 100 questions, and in 23 of them the three presentations shared no
+  passage at all.** So a published LLM-pruner result is one draw from a
+  distribution over selections that its paper does not mention.
 - **LLMLingua-2's compression is order-dependent too**, when applied to a
   concatenated context the normal way: **0 of 100** passages compressed identically
   across orderings. It is a deterministic token classifier, which makes this the
@@ -74,7 +75,8 @@ fixed ordering throughout.
 
 A note on the LLM-pruner result above: that an LLM's selection is order-sensitive
 is *not* a surprising phenomenon given the in-context-learning literature, and it
-is not claimed as one. The claim is narrower: this known effect reaches into the
+is not claimed as one. It is also a robustness check rather than a confirmatory
+endpoint, and sits outside the pre-registered multiplicity family. The claim is narrower: this known effect reaches into the
 pruner's selection, and no published evaluation of an LLM pruner controls for it.
 The LLMLingua-2 result is less exposed to that objection, since it is a
 deterministic token classifier rather than a prompted model.
@@ -172,6 +174,7 @@ python -m pip install -r requirements.txt      # torch must come from the CUDA i
 | The week-1 gate | `python -m src.gate results/pilot_w1/generations.csv` |
 | Main run | `python -m src.run --config configs/main.yaml` |
 | Figures | `python -m src.figures --config configs/main.yaml` |
+| Selection-stability probe | `python -m src.selection_probe --config configs/main.yaml --n 100` |
 | Tests | `python -m pytest -q` |
 
 Every generation is content-hash cached on `sha256(model, prompt, decode_params)`
@@ -191,10 +194,10 @@ numbers are meaningless by construction), `--n 20` shrinks the question set,
 | arms `rerank_topk` / `provence_rerank` / `provence_full` / `llm_pruner` / `llmlingua2` | done |
 | arm `loo_oracle` | done — ran at full scale, n=274 |
 | main run + confirmatory analysis | done — 45,510 rows |
-| figures — one per research question, `python -m src.figures` | done |
+| figures — one per research question, plus the selection probe, `python -m src.figures` | done |
 | 2WikiMultihopQA + hosted cross-generator replication | to come |
 
-**211 tests** pass (`python -m pytest -q -m "not network"`, ~10s). Three are
+**222 tests** pass (`python -m pytest -q -m "not network"`, ~10s). Three are
 marked `network` and download HotpotQA on first run; `pytest -m "not network"`
 deselects them.
 

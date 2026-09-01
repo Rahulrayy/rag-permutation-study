@@ -192,3 +192,65 @@ def test_rq1_refuses_an_arm_with_no_permutations():
     analysis = {"rq1_mean_within_query_sd": {"full": _entry(0.1)}}
     with pytest.raises(ValueError, match="more than one permutation"):
         fig_rq1(scores, analysis, budget="3")
+
+
+def _write_probe(path, n=40):
+    """A selection-stability record shaped like the real probe's output."""
+    per_query = [
+        {"qid": f"q{i}", "jaccard": [0.0, 0.2, 0.25, 0.5, 1.0][i % 5], "stable": i % 5 == 4,
+         "selections": {"rank": [0, 1, 2], "reverse": [1, 2, 3], "random": [2, 3, 4]}}
+        for i in range(n)
+    ]
+    changed = sum(1 for r in per_query if r["jaccard"] < 1.0)
+    probe = {
+        "config": {"arm": "llm_pruner", "reference_arm": "rerank_topk",
+                   "model": "Qwen/Qwen2.5-3B-Instruct", "n_queries": n, "budget": 3,
+                   "orders": ["rank", "reverse", "random"], "seed": 1, "n_chunks": 10},
+        "summary": {"n": n, "mean_jaccard": 0.39, "median_jaccard": 0.25,
+                    "changed_fraction": changed / n, "n_changed": changed},
+        "reference_order_invariant": {"n": n, "mean_jaccard": 1.0, "median_jaccard": 1.0,
+                                      "changed_fraction": 0.0, "n_changed": 0},
+        "chance": {"mean": 0.0467, "trials": 20000, "n_chunks": 10},
+        "per_query": per_query,
+    }
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(probe, fh)
+    return path
+
+
+def test_selection_figure_is_drawn_when_the_probe_artifact_exists(tmp_path):
+    results = tmp_path / "res"
+    results.mkdir()
+    _write_analysis(results / "permutation_analysis.json")
+    _write_probe(results / "selection_stability.json")
+
+    written = make_figures(_cfg(results), only=["selection"])
+
+    assert [p.name for p in written] == ["selection_stability.png"]
+    assert written[0].stat().st_size > 10_000
+
+
+def test_asking_for_the_selection_figure_without_the_probe_is_an_error(tmp_path):
+    """Explicitly requested and missing: say which command produces it."""
+    results = tmp_path / "res"
+    results.mkdir()
+    _write_analysis(results / "permutation_analysis.json")
+    with pytest.raises(FileNotFoundError, match="src.selection_probe"):
+        make_figures(_cfg(results), only=["selection"])
+
+
+def test_drawing_everything_skips_the_probe_figure_rather_than_failing(tmp_path):
+    """It is an optional artifact -- the main run does not produce it.
+
+    Skipping is visible on stdout rather than silent, but it must not take the
+    other four figures down with it.
+    """
+    results = tmp_path / "res"
+    results.mkdir()
+    _write_generations(results / "generations.csv")
+    _write_analysis(results / "permutation_analysis.json")
+
+    written = make_figures(_cfg(results))
+
+    assert len(written) == 4
+    assert not any("selection" in p.name for p in written)

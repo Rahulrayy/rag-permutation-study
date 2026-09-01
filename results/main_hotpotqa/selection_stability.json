@@ -1,0 +1,2246 @@
+{
+  "chance": {
+    "mean": 0.04673666666666666,
+    "n_chunks": 10,
+    "trials": 20000
+  },
+  "config": {
+    "arm": "llm_pruner",
+    "budget": 3,
+    "model": "Qwen/Qwen2.5-3B-Instruct",
+    "n_chunks": 10,
+    "n_queries": 100,
+    "note": "robustness check, outside the registered confirmatory family",
+    "orders": [
+      "rank",
+      "reverse",
+      "random"
+    ],
+    "reference_arm": "rerank_topk",
+    "seed": 20260828
+  },
+  "nested_prefix": {
+    "changed_fraction": 0.95,
+    "mean_jaccard": 0.26250000000000007,
+    "median_jaccard": 0.2,
+    "n": 20,
+    "n_changed": 19,
+    "prefix_n": 20
+  },
+  "per_query": [
+    {
+      "jaccard": 1.0,
+      "qid": "5ac4f04e5542995c82c4ad81",
+      "selections": {
+        "random": [
+          4,
+          5,
+          7
+        ],
+        "rank": [
+          4,
+          5,
+          7
+        ],
+        "reverse": [
+          4,
+          5,
+          7
+        ]
+      },
+      "stable": true
+    },
+    {
+      "jaccard": 0.5,
+      "qid": "5a8a40015542996c9b8d5e72",
+      "selections": {
+        "random": [
+          1,
+          2,
+          4
+        ],
+        "rank": [
+          1,
+          2,
+          4
+        ],
+        "reverse": [
+          0,
+          1,
+          2
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5a84c4135542994c784dda31",
+      "selections": {
+        "random": [
+          1,
+          2,
+          5
+        ],
+        "rank": [
+          1,
+          2,
+          8
+        ],
+        "reverse": [
+          2,
+          3,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5a75495a5542996c70cfaed8",
+      "selections": {
+        "random": [
+          2,
+          4,
+          5
+        ],
+        "rank": [
+          0,
+          6,
+          7
+        ],
+        "reverse": [
+          2,
+          3,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5ab527205542996a3a96a03d",
+      "selections": {
+        "random": [
+          0,
+          5,
+          9
+        ],
+        "rank": [
+          5,
+          6,
+          9
+        ],
+        "reverse": [
+          3,
+          6,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5abd1529554299114383a1e3",
+      "selections": {
+        "random": [
+          0,
+          1,
+          2
+        ],
+        "rank": [
+          0,
+          1,
+          5
+        ],
+        "reverse": [
+          0,
+          5,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5ac31602554299741d48a1bf",
+      "selections": {
+        "random": [
+          0,
+          2,
+          5
+        ],
+        "rank": [
+          5,
+          7,
+          9
+        ],
+        "reverse": [
+          0,
+          5,
+          6
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.4,
+      "qid": "5ab44ab25542991779162c58",
+      "selections": {
+        "random": [
+          0,
+          1,
+          2
+        ],
+        "rank": [
+          0,
+          1,
+          9
+        ],
+        "reverse": [
+          0,
+          1,
+          3
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.4,
+      "qid": "5a74994a55429974ef308c2e",
+      "selections": {
+        "random": [
+          0,
+          1,
+          3
+        ],
+        "rank": [
+          1,
+          3,
+          6
+        ],
+        "reverse": [
+          1,
+          3,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5ac4d717554299076e296e0e",
+      "selections": {
+        "random": [
+          1,
+          2,
+          3
+        ],
+        "rank": [
+          1,
+          6,
+          7
+        ],
+        "reverse": [
+          1,
+          2,
+          8
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5a84973e5542992a431d1a67",
+      "selections": {
+        "random": [
+          3,
+          4,
+          5
+        ],
+        "rank": [
+          2,
+          4,
+          5
+        ],
+        "reverse": [
+          0,
+          1,
+          2
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5a78ce79554299029c4b5ea1",
+      "selections": {
+        "random": [
+          2,
+          4,
+          5
+        ],
+        "rank": [
+          4,
+          6,
+          8
+        ],
+        "reverse": [
+          2,
+          3,
+          4
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5ac0e74d554299294b219052",
+      "selections": {
+        "random": [
+          0,
+          1,
+          2
+        ],
+        "rank": [
+          5,
+          6,
+          8
+        ],
+        "reverse": [
+          0,
+          2,
+          5
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5add22bc5542992ae4cec49f",
+      "selections": {
+        "random": [
+          0,
+          1,
+          2
+        ],
+        "rank": [
+          2,
+          3,
+          6
+        ],
+        "reverse": [
+          2,
+          6,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5ab33ef955429969a97a810e",
+      "selections": {
+        "random": [
+          0,
+          1,
+          2
+        ],
+        "rank": [
+          0,
+          5,
+          6
+        ],
+        "reverse": [
+          0,
+          1,
+          2
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.5,
+      "qid": "5ac3ad7f5542995ef918c1de",
+      "selections": {
+        "random": [
+          0,
+          1,
+          9
+        ],
+        "rank": [
+          0,
+          1,
+          9
+        ],
+        "reverse": [
+          0,
+          3,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5a7c703055429935c91b51aa",
+      "selections": {
+        "random": [
+          1,
+          2,
+          4
+        ],
+        "rank": [
+          0,
+          2,
+          6
+        ],
+        "reverse": [
+          0,
+          2,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.25,
+      "qid": "5add39c45542995b365faac5",
+      "selections": {
+        "random": [
+          1,
+          7,
+          9
+        ],
+        "rank": [
+          1,
+          8,
+          9
+        ],
+        "reverse": [
+          7,
+          8,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.4,
+      "qid": "5abba584554299642a094afa",
+      "selections": {
+        "random": [
+          3,
+          4,
+          5
+        ],
+        "rank": [
+          4,
+          5,
+          9
+        ],
+        "reverse": [
+          0,
+          4,
+          5
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5ae601e45542992663a4f23b",
+      "selections": {
+        "random": [
+          2,
+          3,
+          6
+        ],
+        "rank": [
+          0,
+          3,
+          6
+        ],
+        "reverse": [
+          2,
+          4,
+          6
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5a8c2d23554299240d9c20b7",
+      "selections": {
+        "random": [
+          1,
+          2,
+          8
+        ],
+        "rank": [
+          0,
+          7,
+          8
+        ],
+        "reverse": [
+          1,
+          3,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.4,
+      "qid": "5ab3af70554299233954ff81",
+      "selections": {
+        "random": [
+          1,
+          3,
+          9
+        ],
+        "rank": [
+          3,
+          5,
+          9
+        ],
+        "reverse": [
+          3,
+          7,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.4,
+      "qid": "5ae3f1bb5542995ad6573cbe",
+      "selections": {
+        "random": [
+          2,
+          3,
+          6
+        ],
+        "rank": [
+          2,
+          6,
+          7
+        ],
+        "reverse": [
+          1,
+          2,
+          6
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5a81418455429903bc27b95f",
+      "selections": {
+        "random": [
+          1,
+          5,
+          7
+        ],
+        "rank": [
+          0,
+          1,
+          7
+        ],
+        "reverse": [
+          3,
+          4,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5a8edb5c55429917b4a5bde9",
+      "selections": {
+        "random": [
+          2,
+          4,
+          6
+        ],
+        "rank": [
+          4,
+          7,
+          8
+        ],
+        "reverse": [
+          0,
+          1,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5adbc8e25542996e68525230",
+      "selections": {
+        "random": [
+          0,
+          1,
+          6
+        ],
+        "rank": [
+          5,
+          6,
+          9
+        ],
+        "reverse": [
+          0,
+          1,
+          3
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5a7a05485542990198eaf04c",
+      "selections": {
+        "random": [
+          0,
+          4,
+          9
+        ],
+        "rank": [
+          0,
+          1,
+          2
+        ],
+        "reverse": [
+          0,
+          2,
+          4
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5a7b24fe55429931da12c9f7",
+      "selections": {
+        "random": [
+          4,
+          8,
+          9
+        ],
+        "rank": [
+          0,
+          1,
+          2
+        ],
+        "reverse": [
+          2,
+          8,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5a8f5273554299458435d5b1",
+      "selections": {
+        "random": [
+          0,
+          1,
+          5
+        ],
+        "rank": [
+          0,
+          1,
+          7
+        ],
+        "reverse": [
+          1,
+          7,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5ae56a3f5542992663a4f1f4",
+      "selections": {
+        "random": [
+          3,
+          4,
+          8
+        ],
+        "rank": [
+          1,
+          3,
+          7
+        ],
+        "reverse": [
+          0,
+          3,
+          8
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.5,
+      "qid": "5abf8cc35542990832d3a14e",
+      "selections": {
+        "random": [
+          0,
+          1,
+          4
+        ],
+        "rank": [
+          0,
+          1,
+          2
+        ],
+        "reverse": [
+          0,
+          1,
+          2
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5ae09a6b55429924de1b710d",
+      "selections": {
+        "random": [
+          0,
+          1,
+          2
+        ],
+        "rank": [
+          2,
+          3,
+          8
+        ],
+        "reverse": [
+          0,
+          2,
+          3
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.14285714285714285,
+      "qid": "5abb8ebe5542993f40c73b2d",
+      "selections": {
+        "random": [
+          0,
+          3,
+          6
+        ],
+        "rank": [
+          6,
+          8,
+          9
+        ],
+        "reverse": [
+          4,
+          5,
+          6
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.5,
+      "qid": "5ac4392e5542997ea680ca32",
+      "selections": {
+        "random": [
+          0,
+          3,
+          9
+        ],
+        "rank": [
+          0,
+          3,
+          9
+        ],
+        "reverse": [
+          3,
+          4,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5abe3c7555429965af743ea5",
+      "selections": {
+        "random": [
+          0,
+          4,
+          6
+        ],
+        "rank": [
+          0,
+          5,
+          6
+        ],
+        "reverse": [
+          4,
+          8,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.14285714285714285,
+      "qid": "5a73984355429908901be307",
+      "selections": {
+        "random": [
+          0,
+          1,
+          8
+        ],
+        "rank": [
+          3,
+          6,
+          8
+        ],
+        "reverse": [
+          4,
+          7,
+          8
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5abca6375542993a06baf946",
+      "selections": {
+        "random": [
+          2,
+          6,
+          8
+        ],
+        "rank": [
+          2,
+          6,
+          9
+        ],
+        "reverse": [
+          3,
+          6,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5ade78e255429939a52fe8d0",
+      "selections": {
+        "random": [
+          2,
+          5,
+          6
+        ],
+        "rank": [
+          5,
+          6,
+          7
+        ],
+        "reverse": [
+          1,
+          2,
+          5
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5a70f11a5542994082a3e40b",
+      "selections": {
+        "random": [
+          0,
+          8,
+          9
+        ],
+        "rank": [
+          0,
+          5,
+          6
+        ],
+        "reverse": [
+          2,
+          3,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5add566b5542995b365fab14",
+      "selections": {
+        "random": [
+          1,
+          2,
+          8
+        ],
+        "rank": [
+          6,
+          7,
+          9
+        ],
+        "reverse": [
+          2,
+          7,
+          8
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5a86ed6155429960ec39b6d9",
+      "selections": {
+        "random": [
+          2,
+          4,
+          5
+        ],
+        "rank": [
+          1,
+          4,
+          5
+        ],
+        "reverse": [
+          3,
+          4,
+          8
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5abb342055429966062416e8",
+      "selections": {
+        "random": [
+          0,
+          1,
+          7
+        ],
+        "rank": [
+          7,
+          8,
+          9
+        ],
+        "reverse": [
+          5,
+          7,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5a78d38455429970f5fffd94",
+      "selections": {
+        "random": [
+          1,
+          2,
+          7
+        ],
+        "rank": [
+          5,
+          7,
+          9
+        ],
+        "reverse": [
+          0,
+          7,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5a872c3f5542994775f607a8",
+      "selections": {
+        "random": [
+          0,
+          2,
+          5
+        ],
+        "rank": [
+          0,
+          6,
+          9
+        ],
+        "reverse": [
+          0,
+          3,
+          5
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5a7dedef5542995f4f40231a",
+      "selections": {
+        "random": [
+          0,
+          1,
+          5
+        ],
+        "rank": [
+          2,
+          3,
+          5
+        ],
+        "reverse": [
+          2,
+          5,
+          6
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5a90843c5542995651fb517e",
+      "selections": {
+        "random": [
+          0,
+          1,
+          5
+        ],
+        "rank": [
+          4,
+          5,
+          6
+        ],
+        "reverse": [
+          2,
+          4,
+          5
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5a74167455429929fddd83dc",
+      "selections": {
+        "random": [
+          0,
+          1,
+          3
+        ],
+        "rank": [
+          0,
+          7,
+          9
+        ],
+        "reverse": [
+          0,
+          3,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.5,
+      "qid": "5ab972485542996be20204f6",
+      "selections": {
+        "random": [
+          0,
+          1,
+          6
+        ],
+        "rank": [
+          0,
+          1,
+          6
+        ],
+        "reverse": [
+          1,
+          6,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5ac170af5542994d76dcce20",
+      "selections": {
+        "random": [
+          0,
+          2,
+          3
+        ],
+        "rank": [
+          0,
+          6,
+          9
+        ],
+        "reverse": [
+          4,
+          5,
+          6
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.14285714285714285,
+      "qid": "5a7636fb55429976ec32bd79",
+      "selections": {
+        "random": [
+          0,
+          5,
+          6
+        ],
+        "rank": [
+          6,
+          8,
+          9
+        ],
+        "reverse": [
+          1,
+          3,
+          6
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.14285714285714285,
+      "qid": "5a84800f554299123d8c2276",
+      "selections": {
+        "random": [
+          0,
+          2,
+          3
+        ],
+        "rank": [
+          2,
+          6,
+          7
+        ],
+        "reverse": [
+          1,
+          2,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5ade6b67554299728e26c71c",
+      "selections": {
+        "random": [
+          0,
+          1,
+          2
+        ],
+        "rank": [
+          5,
+          6,
+          9
+        ],
+        "reverse": [
+          5,
+          6,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5a7337715542991f9a20c690",
+      "selections": {
+        "random": [
+          1,
+          4,
+          7
+        ],
+        "rank": [
+          6,
+          7,
+          9
+        ],
+        "reverse": [
+          1,
+          3,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.5,
+      "qid": "5adc393f5542996e685252e7",
+      "selections": {
+        "random": [
+          2,
+          6,
+          9
+        ],
+        "rank": [
+          1,
+          2,
+          9
+        ],
+        "reverse": [
+          1,
+          2,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.5,
+      "qid": "5ac1bff05542994ab5c67dfc",
+      "selections": {
+        "random": [
+          7,
+          8,
+          9
+        ],
+        "rank": [
+          6,
+          7,
+          9
+        ],
+        "reverse": [
+          6,
+          7,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5a7c6e435542996dd594b933",
+      "selections": {
+        "random": [
+          1,
+          5,
+          6
+        ],
+        "rank": [
+          1,
+          7,
+          8
+        ],
+        "reverse": [
+          1,
+          7,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.14285714285714285,
+      "qid": "5a83d7535542993344746093",
+      "selections": {
+        "random": [
+          5,
+          7,
+          9
+        ],
+        "rank": [
+          0,
+          1,
+          9
+        ],
+        "reverse": [
+          3,
+          4,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.4,
+      "qid": "5adebc51554299728e26c799",
+      "selections": {
+        "random": [
+          1,
+          2,
+          3
+        ],
+        "rank": [
+          1,
+          2,
+          7
+        ],
+        "reverse": [
+          0,
+          1,
+          2
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5ae3f4fe5542995ad6573ce8",
+      "selections": {
+        "random": [
+          0,
+          2,
+          5
+        ],
+        "rank": [
+          0,
+          5,
+          8
+        ],
+        "reverse": [
+          0,
+          6,
+          8
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5abaf0ec5542996cc5e49f22",
+      "selections": {
+        "random": [
+          4,
+          7,
+          8
+        ],
+        "rank": [
+          7,
+          8,
+          9
+        ],
+        "reverse": [
+          1,
+          4,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5ae3205c55429928c423961e",
+      "selections": {
+        "random": [
+          1,
+          2,
+          4
+        ],
+        "rank": [
+          1,
+          3,
+          8
+        ],
+        "reverse": [
+          1,
+          2,
+          3
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.4,
+      "qid": "5ab69c25554299110f219a39",
+      "selections": {
+        "random": [
+          3,
+          6,
+          8
+        ],
+        "rank": [
+          5,
+          6,
+          8
+        ],
+        "reverse": [
+          4,
+          6,
+          8
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5a72df275542992359bc31b3",
+      "selections": {
+        "random": [
+          4,
+          8,
+          9
+        ],
+        "rank": [
+          5,
+          6,
+          9
+        ],
+        "reverse": [
+          5,
+          8,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5a7c99d555429935c91b5254",
+      "selections": {
+        "random": [
+          2,
+          5,
+          6
+        ],
+        "rank": [
+          6,
+          7,
+          8
+        ],
+        "reverse": [
+          0,
+          3,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5ae26c795542992decbdccfb",
+      "selections": {
+        "random": [
+          3,
+          4,
+          8
+        ],
+        "rank": [
+          3,
+          4,
+          5
+        ],
+        "reverse": [
+          2,
+          3,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.4,
+      "qid": "5ab4313a554299233955004c",
+      "selections": {
+        "random": [
+          2,
+          6,
+          7
+        ],
+        "rank": [
+          6,
+          7,
+          8
+        ],
+        "reverse": [
+          6,
+          7,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5add38355542990dbb2f7dd0",
+      "selections": {
+        "random": [
+          4,
+          7,
+          9
+        ],
+        "rank": [
+          4,
+          6,
+          7
+        ],
+        "reverse": [
+          2,
+          3,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5a85c41a5542994c784ddb7a",
+      "selections": {
+        "random": [
+          0,
+          1,
+          2
+        ],
+        "rank": [
+          5,
+          6,
+          9
+        ],
+        "reverse": [
+          2,
+          3,
+          6
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5a777ca855429949eeb29e6a",
+      "selections": {
+        "random": [
+          0,
+          1,
+          2
+        ],
+        "rank": [
+          1,
+          3,
+          9
+        ],
+        "reverse": [
+          0,
+          3,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5ae48e7e55429913cc20449d",
+      "selections": {
+        "random": [
+          1,
+          2,
+          5
+        ],
+        "rank": [
+          2,
+          5,
+          7
+        ],
+        "reverse": [
+          4,
+          5,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5ae0036a55429942ec259bdf",
+      "selections": {
+        "random": [
+          2,
+          8,
+          9
+        ],
+        "rank": [
+          2,
+          3,
+          6
+        ],
+        "reverse": [
+          0,
+          2,
+          3
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5a7dbc175542995ed0d1666b",
+      "selections": {
+        "random": [
+          3,
+          4,
+          8
+        ],
+        "rank": [
+          5,
+          6,
+          7
+        ],
+        "reverse": [
+          2,
+          3,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5a82028a554299676cceb1d6",
+      "selections": {
+        "random": [
+          4,
+          7,
+          8
+        ],
+        "rank": [
+          7,
+          8,
+          9
+        ],
+        "reverse": [
+          3,
+          4,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5ab9812d554299753720f821",
+      "selections": {
+        "random": [
+          3,
+          5,
+          9
+        ],
+        "rank": [
+          0,
+          5,
+          7
+        ],
+        "reverse": [
+          4,
+          6,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5abe2b0155429976d4830a83",
+      "selections": {
+        "random": [
+          0,
+          5,
+          6
+        ],
+        "rank": [
+          3,
+          5,
+          6
+        ],
+        "reverse": [
+          3,
+          5,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5abb14a55542992ccd8e7f06",
+      "selections": {
+        "random": [
+          1,
+          2,
+          4
+        ],
+        "rank": [
+          2,
+          7,
+          8
+        ],
+        "reverse": [
+          0,
+          1,
+          2
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.5,
+      "qid": "5ab414295542996a3a969f1d",
+      "selections": {
+        "random": [
+          0,
+          4,
+          5
+        ],
+        "rank": [
+          0,
+          4,
+          5
+        ],
+        "reverse": [
+          0,
+          4,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.4,
+      "qid": "5a89007355429938390d4026",
+      "selections": {
+        "random": [
+          1,
+          2,
+          3
+        ],
+        "rank": [
+          1,
+          2,
+          9
+        ],
+        "reverse": [
+          0,
+          1,
+          2
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5abd68d655429933744ab7c0",
+      "selections": {
+        "random": [
+          1,
+          2,
+          6
+        ],
+        "rank": [
+          1,
+          2,
+          6
+        ],
+        "reverse": [
+          0,
+          3,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.14285714285714285,
+      "qid": "5ae305355542992decbdcdc2",
+      "selections": {
+        "random": [
+          2,
+          4,
+          8
+        ],
+        "rank": [
+          2,
+          7,
+          9
+        ],
+        "reverse": [
+          2,
+          3,
+          6
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5ab5d4eb5542992aa134a3aa",
+      "selections": {
+        "random": [
+          0,
+          3,
+          7
+        ],
+        "rank": [
+          0,
+          6,
+          9
+        ],
+        "reverse": [
+          3,
+          6,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5ae4627d5542991a06ce9a4d",
+      "selections": {
+        "random": [
+          3,
+          5,
+          8
+        ],
+        "rank": [
+          0,
+          5,
+          8
+        ],
+        "reverse": [
+          2,
+          3,
+          8
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5a82e25555429954d2e2ebbf",
+      "selections": {
+        "random": [
+          3,
+          4,
+          5
+        ],
+        "rank": [
+          2,
+          4,
+          7
+        ],
+        "reverse": [
+          3,
+          4,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5a87ef2f55429938390d3eb9",
+      "selections": {
+        "random": [
+          0,
+          4,
+          5
+        ],
+        "rank": [
+          0,
+          2,
+          9
+        ],
+        "reverse": [
+          2,
+          3,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.5,
+      "qid": "5a72d3525542991f9a20c5ab",
+      "selections": {
+        "random": [
+          3,
+          6,
+          9
+        ],
+        "rank": [
+          0,
+          3,
+          9
+        ],
+        "reverse": [
+          0,
+          3,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.4,
+      "qid": "5abfc8675542993fe9a41e52",
+      "selections": {
+        "random": [
+          3,
+          5,
+          6
+        ],
+        "rank": [
+          5,
+          6,
+          8
+        ],
+        "reverse": [
+          2,
+          5,
+          6
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 1.0,
+      "qid": "5ab98608554299131ca42362",
+      "selections": {
+        "random": [
+          0,
+          1,
+          4
+        ],
+        "rank": [
+          0,
+          1,
+          4
+        ],
+        "reverse": [
+          0,
+          1,
+          4
+        ]
+      },
+      "stable": true
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5ae3376455429928c4239688",
+      "selections": {
+        "random": [
+          4,
+          8,
+          9
+        ],
+        "rank": [
+          6,
+          7,
+          9
+        ],
+        "reverse": [
+          3,
+          6,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5a9052765542995651fb513d",
+      "selections": {
+        "random": [
+          2,
+          3,
+          9
+        ],
+        "rank": [
+          2,
+          6,
+          8
+        ],
+        "reverse": [
+          0,
+          2,
+          3
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5ae22f4e5542996483e6492f",
+      "selections": {
+        "random": [
+          1,
+          3,
+          5
+        ],
+        "rank": [
+          1,
+          2,
+          7
+        ],
+        "reverse": [
+          0,
+          1,
+          2
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5a8e4b7c5542990e94052ab7",
+      "selections": {
+        "random": [
+          2,
+          3,
+          7
+        ],
+        "rank": [
+          3,
+          4,
+          5
+        ],
+        "reverse": [
+          3,
+          4,
+          7
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5abd0b685542996583600501",
+      "selections": {
+        "random": [
+          0,
+          1,
+          5
+        ],
+        "rank": [
+          0,
+          4,
+          5
+        ],
+        "reverse": [
+          1,
+          2,
+          3
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5a8341c255429954d2e2ec6e",
+      "selections": {
+        "random": [
+          0,
+          1,
+          8
+        ],
+        "rank": [
+          3,
+          7,
+          8
+        ],
+        "reverse": [
+          2,
+          3,
+          4
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.0,
+      "qid": "5a7f677455429969796c1a37",
+      "selections": {
+        "random": [
+          1,
+          5,
+          8
+        ],
+        "rank": [
+          1,
+          7,
+          9
+        ],
+        "reverse": [
+          2,
+          3,
+          8
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5a80c74f554299260e20a158",
+      "selections": {
+        "random": [
+          0,
+          2,
+          8
+        ],
+        "rank": [
+          0,
+          7,
+          8
+        ],
+        "reverse": [
+          4,
+          7,
+          8
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.4,
+      "qid": "5ab67c0055429954757d32f6",
+      "selections": {
+        "random": [
+          3,
+          8,
+          9
+        ],
+        "rank": [
+          6,
+          8,
+          9
+        ],
+        "reverse": [
+          0,
+          8,
+          9
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.2,
+      "qid": "5a75462d5542996c70cfaed3",
+      "selections": {
+        "random": [
+          2,
+          4,
+          7
+        ],
+        "rank": [
+          1,
+          2,
+          7
+        ],
+        "reverse": [
+          4,
+          7,
+          8
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.16666666666666666,
+      "qid": "5ae5cf0b55429929b08079aa",
+      "selections": {
+        "random": [
+          4,
+          7,
+          9
+        ],
+        "rank": [
+          0,
+          7,
+          8
+        ],
+        "reverse": [
+          2,
+          7,
+          8
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.5,
+      "qid": "5abd583255429924427fcfb9",
+      "selections": {
+        "random": [
+          0,
+          4,
+          6
+        ],
+        "rank": [
+          0,
+          1,
+          4
+        ],
+        "reverse": [
+          0,
+          4,
+          6
+        ]
+      },
+      "stable": false
+    },
+    {
+      "jaccard": 0.5,
+      "qid": "5ac1bce45542994ab5c67def",
+      "selections": {
+        "random": [
+          1,
+          4,
+          5
+        ],
+        "rank": [
+          1,
+          4,
+          5
+        ],
+        "reverse": [
+          1,
+          2,
+          4
+        ]
+      },
+      "stable": false
+    }
+  ],
+  "reference_order_invariant": {
+    "changed_fraction": 0.0,
+    "mean_jaccard": 1.0,
+    "median_jaccard": 1.0,
+    "n": 100,
+    "n_changed": 0
+  },
+  "summary": {
+    "changed_fraction": 0.98,
+    "mean_jaccard": 0.21340476190476187,
+    "median_jaccard": 0.16666666666666666,
+    "n": 100,
+    "n_changed": 98
+  }
+}
