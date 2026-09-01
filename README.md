@@ -66,9 +66,10 @@ scores.** This is the sharper version of the thesis.
   random guessing). **The selection changed in 98 of 100 questions, and in 23 of
   them the three attempts had no passage in common at all.**
 - LLMLingua-2 compresses a concatenated context differently depending on the
-  order it is given, in **100 out of 100** passages. It is a deterministic
-  classifier, not a prompted model, which makes this the more surprising of the
-  two.
+  order it is given: **0 of 100** passages survive identically across orderings
+  when it is applied the normal way, to the whole context at once. It is a
+  deterministic classifier, not a prompted model, which makes this the more
+  surprising of the two.
 
 **Memorization is not the explanation.** Only 10% of questions can be answered
 with no passages at all, and the analysis is restricted to the questions the
@@ -136,7 +137,7 @@ numbers are meaningless by construction), `--n 20` shrinks the question set,
 | 2WikiMultihopQA, second dataset | to come |
 | hosted cross-generator replication at 27B | partly done, rate-limited |
 
-**222 tests** pass (`python -m pytest -q -m "not network"`, about 10s). Three
+**231 tests** pass (`python -m pytest -q -m "not network"`, about 10s). Three
 more are marked `network` and download the dataset on first run.
 
 ## Main limitations

@@ -11,7 +11,7 @@
         "OAE:llmlingua2": {
           "p_holm": 0.0018000000000000002,
           "p_raw": 0.0002,
-          "point": -5.02838495249484,
+          "point": -2.187978929699862,
           "significant_holm": true
         },
         "OAE:provence_full": {
@@ -33,9 +33,9 @@
           "significant_holm": true
         },
         "PlaceboGap:llmlingua2": {
-          "p_holm": 0.0048,
-          "p_raw": 0.0012,
-          "point": -0.0697676192420718,
+          "p_holm": 0.0018000000000000002,
+          "p_raw": 0.0002,
+          "point": 0.11922571785875956,
           "significant_holm": true
         },
         "PlaceboGap:provence_full": {
@@ -72,7 +72,7 @@
     "oracle_gap": {
       "full": 0.9031416144163935,
       "llm_pruner": 0.6633997486178239,
-      "llmlingua2": 0.13849575045208165,
+      "llmlingua2": 0.4992930670819104,
       "placebo_pos:edges_first": 0.25515059670890905,
       "placebo_pos:middle_first": 0.27168547129796217,
       "placebo_pos:tail_first": 0.23139786152384564,
@@ -96,9 +96,9 @@
       },
       "llmlingua2": {
         "excludes_zero": true,
-        "hi": 0.08578661393943447,
-        "lo": 0.04959477685669181,
-        "point": 0.06712861510305919
+        "hi": 0.16409441116585002,
+        "lo": 0.11922586942001621,
+        "point": 0.14120125686837584
       },
       "loo_oracle": {
         "excludes_zero": true,
@@ -166,10 +166,10 @@
       },
       "llmlingua2": {
         "excludes_zero": true,
-        "hi": -3.780036848089199,
-        "lo": -7.009443222834173,
+        "hi": -1.365597311750597,
+        "lo": -3.329233891321719,
         "p": 0.0002,
-        "point": -5.02838495249484
+        "point": -2.187978929699862
       },
       "loo_oracle": {
         "excludes_zero": true,
@@ -252,10 +252,10 @@
       },
       "llmlingua2": {
         "excludes_zero": true,
-        "hi": -0.02978315243151009,
-        "lo": -0.11030329019115515,
-        "p": 0.0012,
-        "point": -0.0697676192420718
+        "hi": 0.16926012288016162,
+        "lo": 0.06913616454135035,
+        "p": 0.0002,
+        "point": 0.11922571785875956
       },
       "loo_oracle": {
         "excludes_zero": true,
@@ -306,7 +306,7 @@
         "OAE:llmlingua2": {
           "p_holm": 0.0018000000000000002,
           "p_raw": 0.0002,
-          "point": -2.8857897617765222,
+          "point": -0.9293648848793009,
           "significant_holm": true
         },
         "OAE:provence_full": {
@@ -330,7 +330,7 @@
         "PlaceboGap:llmlingua2": {
           "p_holm": 0.0018000000000000002,
           "p_raw": 0.0002,
-          "point": -0.08789680706419789,
+          "point": 0.1355903654855317,
           "significant_holm": true
         },
         "PlaceboGap:provence_full": {
@@ -367,7 +367,7 @@
     "oracle_gap": {
       "full": 0.8764074231227842,
       "llm_pruner": 0.7086259983519052,
-      "llmlingua2": 0.18204404003230934,
+      "llmlingua2": 0.5960623992409844,
       "placebo_pos:edges_first": 0.32466494367571114,
       "placebo_pos:middle_first": 0.34487616782390823,
       "placebo_pos:tail_first": 0.34366627496614605,
@@ -391,9 +391,9 @@
       },
       "llmlingua2": {
         "excludes_zero": true,
-        "hi": 0.1085340068023949,
-        "lo": 0.0689235561311531,
-        "point": 0.08810734228318268
+        "hi": 0.1911667368314302,
+        "lo": 0.14262643483204313,
+        "point": 0.1665518265795751
       },
       "loo_oracle": {
         "excludes_zero": true,
@@ -461,10 +461,10 @@
       },
       "llmlingua2": {
         "excludes_zero": true,
-        "hi": -2.3153598712313403,
-        "lo": -3.6323660481153937,
+        "hi": -0.5286199028305553,
+        "lo": -1.3886607798557784,
         "p": 0.0002,
-        "point": -2.8857897617765222
+        "point": -0.9293648848793009
       },
       "loo_oracle": {
         "excludes_zero": true,
@@ -547,10 +547,10 @@
       },
       "llmlingua2": {
         "excludes_zero": true,
-        "hi": -0.045186868747360553,
-        "lo": -0.13091355004421504,
+        "hi": 0.18385349349555552,
+        "lo": 0.08835472129089958,
         "p": 0.0002,
-        "point": -0.08789680706419789
+        "point": 0.1355903654855317
       },
       "loo_oracle": {
         "excludes_zero": true,
@@ -599,9 +599,9 @@
           "significant_holm": false
         },
         "OAE:llmlingua2": {
-          "p_holm": 0.0018000000000000002,
-          "p_raw": 0.0002,
-          "point": -2.2849823088190004,
+          "p_holm": 0.0056,
+          "p_raw": 0.0014,
+          "point": -0.4585731031335794,
           "significant_holm": true
         },
         "OAE:provence_full": {
@@ -625,7 +625,7 @@
         "PlaceboGap:llmlingua2": {
           "p_holm": 0.0018000000000000002,
           "p_raw": 0.0002,
-          "point": -0.16476508320963715,
+          "point": 0.09576657594551076,
           "significant_holm": true
         },
         "PlaceboGap:provence_full": {
@@ -662,7 +662,7 @@
     "oracle_gap": {
       "full": 0.863752851770401,
       "llm_pruner": 0.7932218518819539,
-      "llmlingua2": 0.21929923236061838,
+      "llmlingua2": 0.6949749159066957,
       "placebo_pos:edges_first": 0.527818922767879,
       "placebo_pos:middle_first": 0.5201254115452293,
       "placebo_pos:tail_first": 0.4956988438129076,
@@ -686,9 +686,9 @@
       },
       "llmlingua2": {
         "excludes_zero": true,
-        "hi": 0.11463755137222222,
-        "lo": 0.0740409302167237,
-        "point": 0.09352994521136301
+        "hi": 0.18894466698725618,
+        "lo": 0.14234301963164536,
+        "point": 0.16549308582000732
       },
       "loo_oracle": {
         "excludes_zero": true,
@@ -756,10 +756,10 @@
       },
       "llmlingua2": {
         "excludes_zero": true,
-        "hi": -1.862395408547713,
-        "lo": -2.8180388150902647,
-        "p": 0.0002,
-        "point": -2.2849823088190004
+        "hi": -0.18723500221822098,
+        "lo": -0.7361311248336945,
+        "p": 0.0014,
+        "point": -0.4585731031335794
       },
       "loo_oracle": {
         "excludes_zero": true,
@@ -842,10 +842,10 @@
       },
       "llmlingua2": {
         "excludes_zero": true,
-        "hi": -0.12034604579143283,
-        "lo": -0.2097863051001161,
+        "hi": 0.14510563083643518,
+        "lo": 0.049053745540166775,
         "p": 0.0002,
-        "point": -0.16476508320963715
+        "point": 0.09576657594551076
       },
       "loo_oracle": {
         "excludes_zero": true,

@@ -6,6 +6,10 @@
 HotpotQA main run. The second dataset and the hosted cross-generator replication
 are not yet finished, and Section 7 says what remains.
 
+All numbers here are from the corrected run. An earlier version reported the
+`llmlingua2` arm wrongly because of a caching defect; Section 4.7 documents it,
+its effect, and why it survived a full analysis and a draft.
+
 ---
 
 ## Abstract
@@ -33,8 +37,10 @@ Third, and in tension with the second, no practical pruner separates from a plai
 cross-encoder top-k baseline once the gain is measured in units of the baseline's
 own permutation noise. We also show that order dependence reaches inside two of
 the methods themselves: an LLM asked which passages to keep returns selections
-with a mean Jaccard of 0.213 across three presentation orders, and LLMLingua-2
-compresses a concatenated context differently depending on the order it is given.
+with a mean Jaccard of 0.213 across three presentation orders, and LLMLingua-2,
+a deterministic classifier, compresses a concatenated context differently
+depending on the order it is given, preserving 0 of 100 passages identically
+across orderings when applied the way it normally is.
 
 ---
 
@@ -266,10 +272,16 @@ budgets by five permutations, plus the no-context baseline.
 
 Mean within-question standard deviation of token-F1 across permutations, at
 k = 3, is 0.1795 (95% CI [0.1554, 0.2038]) for the full-context arm and between
-0.057 and 0.121 for every other arm. Every interval excludes zero. The full
-context is clearly separated from every pruning arm, which is the expected
+0.057 and 0.167 for every other arm. Every interval excludes zero. The full
+context is clearly separated from every keep-k pruning arm, which is the expected
 direction: pruning leaves fewer passages to reorder, so it reduces the amount of
 order sensitivity available.
+
+`llmlingua2` is the instructive exception at **0.1666 [0.1426, 0.1912]**, second
+only to the full context. It is not a keep-k arm: it retains all ten passages and
+compresses each, so it presents ten permutable slots where a keep-3 arm presents
+three. More positional room, more positional variance. That is the mechanism this
+section describes, showing up in the one arm whose design isolates it.
 
 Within the pruning arms, the standard deviation rises monotonically with the
 budget in every case. The full-context arm is flat across budgets at 0.1795,
@@ -323,7 +335,7 @@ by three budgets, survive Holm correction.
 | `provence_full` | +0.2799 | +0.2075 | +0.1399 |
 | `llm_pruner` | +0.2052 | +0.1964 | +0.1496 |
 | `random_drop` | -0.0111 | -0.0190 | -0.0036 |
-| `llmlingua2` | -0.0698 | -0.0879 | -0.1648 |
+| `llmlingua2` | +0.1192 | +0.1356 | +0.0958 |
 
 Five of these arms are inside the pre-registered confirmatory family
 (`provence_rerank`, `provence_full`, `llmlingua2`, `llm_pruner` and
@@ -342,9 +354,12 @@ from an arm that discards them by position, and it is. Without this row the
 positive results would be much weaker evidence, because a placebo gap that came
 out positive for everything would suggest the comparison itself was biased.
 
-**One method fails the test in the opposite direction.** `llmlingua2` is
-significantly *worse* than the positional placebo at every budget. This is
-discussed in Section 4.5.
+**Every method passes, including the compressor.** `llmlingua2` clears the
+placebo at all three budgets (+0.1192, +0.1356, +0.0958), which is worth stating
+explicitly because an earlier version of this analysis reported the opposite. A
+caching defect was feeding that arm one question's compressed passages for every
+question in the run; it is described in Section 4.7, and the numbers here are
+from the corrected run.
 
 The direct answer to the motivating suspicion is therefore negative. Published
 pruners are not merely exploiting positional promotion. At matched keep-count
@@ -366,9 +381,10 @@ The first three rows are confirmatory and Holm-corrected within the family of
 nine; uncorrected p-values are shown in the table and the corrected values are
 quoted in the text below. `loo_oracle` is outside the family and is reported as a
 ceiling with an interval rather than as a test. `llmlingua2` is omitted from this
-table for readability, since its OAE runs from -5.03 to -2.29 and compresses
-every other row; it is significantly negative at all three budgets, which is
-discussed in Section 4.5.
+table for readability, since its OAE runs from -2.19 to -0.46 and would compress
+every other row; it is significantly negative at all three budgets (p = 0.0002,
+0.0002, 0.0014), so it is the one arm that is clearly *behind* the baseline in
+orderings-worth of noise, by about one ordering's worth at the primary budget.
 
 No practical pruner survives Holm correction against the baseline at any budget.
 The best case is `provence_rerank` at the primary budget, at an uncorrected
@@ -427,25 +443,41 @@ is that it reaches the selection step and that no evaluation controls for it.
 
 **LLMLingua-2's compression is also order-dependent**, when applied in the usual
 way to a concatenated context. Asking whether a given passage's surviving text is
-identical across orderings, joint compression preserved **0 of 100** passages
-while per-passage compression preserved **100 of 100**. This is the more
+identical across orderings, joint compression preserved **0 of 100** passages.
+Not one passage survived joint compression the same way twice. This is the more
 surprising of the two results, since LLMLingua-2 is a deterministic token
 classifier rather than a prompted model, and it is not a corollary of the
-in-context-learning literature. It is also the reason this arm compresses each
+in-context-learning literature.
+
+Per-passage compression is order-invariant by construction rather than by
+measurement, and this should be stated as such: a passage compressed on its own
+cannot depend on the order of passages it never saw. An earlier draft reported
+"100 of 100" as an empirical counterpart to the 0 of 100, which it was not; the
+comparison ran through a cache that returned the same entry, so it could not have
+produced any other answer. It is also the reason this arm compresses each
 passage independently: compressing jointly would give each of the five
 permutations different content, breaking the one invariant the design rests on,
 in the very arm intended to test ordering.
 
-**Why LLMLingua-2 loses to a placebo.** At k = 3 the arm retains both gold
-passages in every case (mean gold retained 2.000, against 0.650 for the placebo)
-and emits a slightly longer context (median 1,643 characters against 1,552), yet
-scores 0.0983 mean token-F1 against the placebo's 0.1862. Evidence in shredded
-form is worth less than half the evidence intact. One caution against
-over-reading the budget trend: because the budget is spent as a compression rate,
-a higher k means less compression, and the arm improves monotonically with the
-budget. The widening gap to the placebo is a floor effect in the comparator,
-which is still acquiring gold passages as k grows, rather than a degradation of
-the method.
+**Where LLMLingua-2 lands.** At k = 3 the arm retains both gold passages in
+every case (mean gold retained 2.000, against 0.650 for the placebo) and scores
+**0.3218** mean token-F1 against the placebo's 0.1862. So token-level compression
+keeps enough of the evidence to beat positional dropping comfortably, while still
+trailing every selection method: it sits below `llm_pruner` at 0.3825 and well
+below `provence_rerank` at 0.4621.
+
+The honest reading is that compression and selection are not equivalent uses of
+the same token budget, but the gap is a matter of degree rather than the arm
+being unusable. Against the baseline in orderings-worth of noise it is the one
+arm clearly behind, at -0.93 [-1.39, -0.53] at k = 3, so about one ordering's
+worth of noise *worse* than simply reranking and truncating.
+
+One caution against over-reading the budget trend: because the budget is spent as
+a compression rate, a higher k means *less* compression, so the arm's absolute
+score improves with the budget while its margin over the placebo narrows
+(+0.1192, +0.1356, +0.0958 at k = 2, 3, 5). The narrowing is a floor effect in
+the comparator, which is still acquiring gold passages as k grows, rather than a
+degradation of the method.
 
 ### 4.6 Arm-level behaviour worth reporting
 
@@ -466,6 +498,43 @@ of cells have ties at the selection boundary, and its selection order-Jaccard is
 0.171. Where passages are indistinguishable the selection is decided by arbitrary
 tie-breaking rather than by position, and those are different claims that should
 not be merged.
+
+### 4.7 A corrected defect, and what it cost
+
+One arm's results in an earlier version of this analysis were wrong, and the
+correction is reported here rather than left in the commit history, because the
+way the error survived is itself informative.
+
+LLMLingua-2 compresses each passage separately, and the implementation memoised
+that work. The cache was keyed on the passage's **index and rate** rather than on
+its **text**. Neither component identifies a passage: the driver is arm-major, so
+one instance serves every question in a run, and the rate is k/n, constant across
+questions. The whole arm therefore had about thirty distinct keys, and every
+question after the first received the first question's compressed passages.
+
+The effect was large. At k = 3 the arm's mean token-F1 was 0.0983 and is 0.3218
+corrected; its Placebo Gap was -0.0879 and is +0.1356; its Order-Adjusted Effect
+was -2.89 and is -0.93. Every other arm reproduced to four decimal places, and
+the primary endpoint is unchanged at +0.2760 [0.2223, 0.3297], Holm p = 0.0018.
+The pre-fix aggregates are kept beside the results for audit.
+
+**Why it hid.** The instrumentation reported `n_gold_kept` = 2.000 for this arm
+throughout, because that quantity is computed from passage metadata rather than
+passage text. The arm therefore looked like it was retaining all the evidence and
+simply answering badly, which is a describable phenomenon rather than an obvious
+fault. The project twice proposed a substantive explanation for it: first that
+the arm scored below the no-context floor, which was correctly retracted as a
+population-comparison error, and then that "evidence in shredded form is worth
+less than the evidence intact", which reached a full draft of this document.
+
+**The lesson worth taking.** An arm that retains all the gold evidence and scores
+below random dropping is not a finding, it is a contradiction, and a contradiction
+should be treated as a defect until it has been ruled out as one. The measurement
+that would have settled it, comparing the compressed text of the same passage
+across two different questions, takes a minute and was never run, because the
+result already had an explanation. No test caught it either: every test exercised
+a single question's passages, and the defect only appears from the second question
+onward.
 
 ---
 
@@ -514,7 +583,8 @@ LLMLingua-2, are not statements about noisy evaluation. They say the method
 itself computes a different function of the same inputs depending on presentation
 order. For LLMLingua-2 in particular, a deterministic classifier that preserves
 no passage identically across orderings is a result that its intended usage
-pattern makes invisible.
+pattern makes invisible: applied as intended, to a whole concatenated context,
+its output is a function of an ordering nobody thinks of as a parameter.
 
 ---
 
