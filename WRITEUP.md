@@ -776,7 +776,7 @@ of questions move, against 50.0% here), but that probe used a different
 population, three permutations rather than five and a weaker model, so it
 supports the existence of the effect outside one model family and not any
 comparison of magnitude. A hosted cross-generator replication at 27B is
-partially complete, at 1,610 of roughly 1,655 calls, held up by a
+partially complete, at 1,642 of roughly 1,655 calls, held up by a
 tokens-per-day quota rather than by anything about the method.
 
 **"Rank" is the dataset's as-given order.** HotpotQA distractor has no retriever,
@@ -807,8 +807,8 @@ no-derivatives licence, which restricts reuse of that arm outside research.
 
 ## 7. What remains
 
-- The hosted cross-generator replication at 27B is **1,610 of roughly 1,655
-  calls complete**, with 45 remaining. It is rate-limited by a tokens-per-day
+- The hosted cross-generator replication at 27B is **1,642 of roughly 1,655
+  calls complete**, with 13 remaining. It is rate-limited by a tokens-per-day
   quota rather than blocked, and every completed call is cached, so it resumes
   rather than restarts. Sections 5 and 6 will need revision once it lands. Note
   what it can and cannot establish: it is a **scale** check, 3B to 27B, and not a
