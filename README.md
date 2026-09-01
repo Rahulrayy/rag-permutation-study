@@ -171,6 +171,7 @@ python -m pip install -r requirements.txt      # torch must come from the CUDA i
 | Pilot | `python -m src.run --config configs/pilot.yaml` |
 | The week-1 gate | `python -m src.gate results/pilot_w1/generations.csv` |
 | Main run | `python -m src.run --config configs/main.yaml` |
+| Figures | `python -m src.figures --config configs/main.yaml` |
 | Tests | `python -m pytest -q` |
 
 Every generation is content-hash cached on `sha256(model, prompt, decode_params)`
@@ -190,10 +191,10 @@ numbers are meaningless by construction), `--n 20` shrinks the question set,
 | arms `rerank_topk` / `provence_rerank` / `provence_full` / `llm_pruner` / `llmlingua2` | done |
 | arm `loo_oracle` | done — ran at full scale, n=274 |
 | main run + confirmatory analysis | done — 45,510 rows |
+| figures — one per research question, `python -m src.figures` | done |
 | 2WikiMultihopQA + hosted cross-generator replication | to come |
-| figures | to come |
 
-**200 tests** pass (`python -m pytest -q -m "not network"`, ~17s). Three are
+**211 tests** pass (`python -m pytest -q -m "not network"`, ~10s). Three are
 marked `network` and download HotpotQA on first run; `pytest -m "not network"`
 deselects them.
 

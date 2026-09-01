@@ -166,6 +166,22 @@ def validate_rewrite(
     return list(rewritten)
 
 
+def arm_budget_is_keep_count(name: str) -> bool:
+    """Does this arm's ``budget`` mean "keep exactly k chunks"?
+
+    Reads the class attribute without constructing anything: the callers are
+    analysis and figure code, and instantiating `llmlingua2` or `provence_*` to
+    read a boolean would load a checkpoint. Raises for an unregistered arm rather
+    than defaulting, because every caller uses this to decide whether it may
+    describe a comparison as matched-keep-count, and guessing there is the exact
+    error the flag exists to prevent.
+    """
+    base, _ = parse_arm(name)
+    if base not in _REGISTRY:
+        raise KeyError(f"unknown arm {base!r}; registered: {sorted(_REGISTRY)}")
+    return bool(_REGISTRY[base].budget_is_keep_count)
+
+
 def get_pruner(name: str, **kwargs: object) -> Pruner:
     """Look up an arm by config name, resolving any ``arm:variant`` suffix."""
     base, variant = parse_arm(name)

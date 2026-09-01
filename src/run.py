@@ -518,7 +518,12 @@ def main() -> None:
     if args.audit is not None:
         cfg.raw["audit_determinism"] = args.audit
     if args.figures_only:
-        raise NotImplementedError("figure generation not implemented (week 6)")
+        # Imported here, not at module scope: matplotlib is a figure-time
+        # dependency and a GPU run should not pay for importing it.
+        from .figures import make_figures
+
+        make_figures(cfg)
+        return
 
     run(cfg)
 

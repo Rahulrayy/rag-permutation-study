@@ -6,6 +6,7 @@ That is the whole cost of a ninth arm.
 
 from .base import (
     Pruner,
+    arm_budget_is_keep_count,
     expand_arms,
     get_pruner,
     parse_arm,
@@ -25,6 +26,7 @@ from .rerank_topk import RerankTopK
 
 __all__ = [
     "Pruner",
+    "arm_budget_is_keep_count",
     "expand_arms",
     "get_pruner",
     "parse_arm",
