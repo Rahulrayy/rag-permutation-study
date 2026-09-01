@@ -1,0 +1,573 @@
+# Is it the pruning, or the ordering?
+
+## A permutation-controlled re-evaluation of context selection in retrieval-augmented generation
+
+**Draft, 2026-09-01.** Sections 1 to 6 are written against the completed
+HotpotQA main run. The second dataset and the hosted cross-generator replication
+are not yet finished, and Section 7 says what remains.
+
+---
+
+## Abstract
+
+Context pruning methods for retrieval-augmented generation claim to discard most
+of a retrieved context with little loss of answer quality. Every such method is
+evaluated with the passages in one fixed order. Separately, it is well
+established that language model outputs are sensitive to the order of the
+material in their context. Pruning does not only remove passages, it moves the
+survivors into new positions, so a reported pruning gain and a position effect
+are confounded in the standard evaluation.
+
+This study separates them. Holding passage content fixed, we generate answers
+under five orderings of every retained context, and we introduce a
+position-matched placebo that drops the same number of passages by position
+alone. Across 45,510 generations covering eleven arms, 274 questions, three
+budgets and five permutations, we find three things. First, reordering an
+identical context changes the answer for about half of all questions, and for
+those questions the swing is large, with a median within-question standard
+deviation of 0.39 token-F1. Second, the pre-registered primary endpoint is
+clearly positive: published pruners beat the position-matched placebo at equal
+keep-count by 0.2760 token-F1 (95% CI [0.2223, 0.3297], Holm-adjusted p = 0.0018),
+so their gains are genuine content selection rather than positional promotion.
+Third, and in tension with the second, no practical pruner separates from a plain
+cross-encoder top-k baseline once the gain is measured in units of the baseline's
+own permutation noise. We also show that order dependence reaches inside two of
+the methods themselves: an LLM asked which passages to keep returns selections
+with a mean Jaccard of 0.213 across three presentation orders, and LLMLingua-2
+compresses a concatenated context differently depending on the order it is given.
+
+---
+
+## 1. Introduction
+
+A retrieval-augmented generation system retrieves a set of passages and places
+them in a prompt. Because context windows and inference budgets are finite, a
+large literature proposes ways to shorten that context: rerank and keep the top
+few, prune sentences within passages, or compress the token sequence directly.
+These methods report that most of a retrieved context can be discarded at little
+cost in answer quality.
+
+Every one of these evaluations shares a design decision that is rarely stated.
+The passages are presented in one fixed order, usually retriever rank, and the
+comparison is between a pruned context in that order and the full context in that
+same order. A separate body of work has established that language models are
+sensitive to the order of material in their prompts, and that this sensitivity is
+large.
+
+These two facts interact in a way that has not been measured. Pruning changes
+positions. Dropping passages three, five and seven from a ten-passage context
+promotes passages eight, nine and ten into earlier, more visible slots. If answer
+quality depends on position, then part of what a pruning method appears to gain
+may be an interaction with position bias rather than better evidence selection,
+and it is measured against a reference point that moves when the method acts.
+
+This study asks how much of a reported pruning gain survives when ordering is
+controlled. It is not a new pruning method. It is an evaluation protocol, two
+controls that the literature does not run, and a set of numbers.
+
+The research questions, fixed before any data was collected, are:
+
+- **RQ1.** Does answer quality vary across permutations of a fixed context, with
+  content held constant?
+- **RQ2.** How large is a pruning method's gain over a simple baseline when
+  expressed in units of that baseline's own permutation noise?
+- **RQ3.** How often does the ranking of two methods reverse depending on which
+  single arbitrary ordering the comparison happens to be made at?
+- **RQ4.** Does a published pruner beat a position-matched placebo that discards
+  the same number of passages by position alone?
+
+RQ4 is the centerpiece and provides the pre-registered primary endpoint.
+
+---
+
+## 2. Related work
+
+**Order sensitivity in language models.** The order of in-context examples moves
+few-shot accuracy substantially, the order of multiple-choice options moves
+answer selection, and the position of relevant evidence within a long context has
+a characteristic shape often described as a loss of accuracy for material in the
+middle. Recent work traces part of this to the causal attention mechanism itself.
+This literature establishes the phenomenon that the present study uses as a
+control.
+
+**Context pruning and compression.** Reranking followed by top-k selection is the
+standard baseline. Provence prunes at the sentence level while also producing a
+reranking score. LLMLingua-2 performs token-level compression with a trained
+classifier. Further work addresses budget-constrained and redundancy-aware
+selection under token limits.
+
+**The gap.** A literature check conducted in August 2026 found no work that
+evaluates pruning methods under multiple permutations with content held fixed,
+none that runs a position-matched placebo, and none that reports how often method
+rankings flip across orderings. The nearest neighbours address adjacent
+questions. Conformal, coverage-controlled filtering selects passages under a
+statistical guarantee but uses a single fixed ordering. Answer-survival
+diagnostics for budgeted packing ask whether the answer string survives pruning,
+which is related to our observation about aggressive sentence pruning, but again
+without a permutation control. Benchmark work that shuffles retrieved documents
+measures the effect of order, but treats it as a property to report rather than
+as a control to apply when evaluating other methods.
+
+One framing point should be made explicitly, because it is the main risk to the
+contribution. That an LLM's behaviour is order-sensitive is not a new phenomenon,
+and this study does not claim it as one. The claim made here is narrower: this
+known effect propagates into the selection step of pruning methods, and no
+published evaluation of such a method controls for it.
+
+---
+
+## 3. Design
+
+### 3.1 Data
+
+HotpotQA in the distractor setting. Each question ships ten paragraphs, two of
+which are gold and eight of which are distractors, so no retrieval step is
+required and the passage set is fixed by the dataset. Of 7,405 validation rows,
+60 (0.81%) do not contain exactly ten paragraphs and are excluded, leaving a
+working population of 7,345. This is a comparability exclusion rather than a
+coverage one: a fixed context size is what makes a position, a positional bucket
+and a keep-k budget mean the same thing across questions. All 60 excluded rows
+still contain both gold paragraphs.
+
+Sampling is seeded and stratified by hop type, and it is nested, meaning that the
+sample at n = 100 is a strict prefix of the sample at n = 300 under the same
+seed. This makes a pilot directly comparable to the main run rather than merely
+similar to it.
+
+The main run samples 300 questions. A memorization filter then restricts the
+analysis population to the questions the generator answers incorrectly with no
+context at all, which leaves **274**. This matters for reading any table: the
+no-context arm is reported over all 300 sampled questions, while every other arm
+is reported over the 274, and on those 274 the no-context floor is by
+construction near zero (mean token-F1 0.0089). The filter is defined as removing
+the questions the model can already answer, so the two populations are not
+interchangeable.
+
+### 3.2 Generator and decoding
+
+Qwen2.5-3B-Instruct, quantized to 4-bit, run locally. A local model is required
+because the leave-one-out oracle arm needs the log-probability of the answer
+sequence, which hosted chat APIs do not generally expose.
+
+Decoding is greedy everywhere, with no exceptions. Sampling noise and permutation
+noise would otherwise be confounded and no number in the study would be
+interpretable. This is enforced in the configuration loader and again in the
+generator before any model is loaded, and it was verified empirically as
+reproducing identical output across repeated runs and across process restarts.
+
+The prompt template was frozen before the main run, chosen on answer accuracy and
+answer-format match rather than on permutation variance. Choosing a prompt because
+it maximised the study's own headline quantity would be a garden-of-forking-paths
+error. It is worth recording that the choice went against the initial expectation:
+a template that produces full-sentence answers scores a uniformly mediocre result
+regardless of ordering, which compresses token-F1 toward the middle and damps the
+measured variance. Verbosity was masking position sensitivity rather than creating
+it.
+
+### 3.3 The permutation protocol
+
+For every (question, arm, budget) cell, answers are generated under P = 5
+orderings of the passages the arm retained: as-given, reversed, and three seeded
+random draws. The random orderings are seeded per question, so the three draws
+differ from question to question. Seeding them globally would reuse one trio of
+orderings across the whole dataset, making the random draws a sample of size
+three from n! whose sampling error never averages out.
+
+One term needs care. In this dataset "rank" means the dataset's as-given
+paragraph order, not a retriever ranking, because the distractor setting involves
+no retriever. It remains the right reference ordering, since it is the one any
+evaluation on this dataset implicitly uses, but it should not be described as
+retriever rank.
+
+### 3.4 Separation of selection, rewriting and ordering
+
+The design rests on keeping three operations apart. Selection returns indices,
+rewriting returns text, and ordering returns a permutation. A pruner that
+returned its passages in its own preferred order would confound selection with
+ordering, and the confound could not be detected afterwards. A pruner that folded
+rewriting into selection would make a matched-keep-count comparison impossible.
+Every arm is implemented behind an interface that enforces this separation, and
+budget compliance is checked rather than assumed.
+
+Two arms genuinely have no keep-count. The full-context arm prunes nothing by
+construction, and LLMLingua-2 is rate-based, spending the budget as a compression
+rate of k/n because it produces no passage ranking from which a top-k could be
+taken. Both declare this explicitly, and they are compared on input-token count
+rather than on k. Any table or figure describing a comparison as matched at equal
+keep-count must mark them, and ours do.
+
+### 3.5 Arms
+
+| Arm | What it is |
+|---|---|
+| `full` | all ten passages, upper reference |
+| `nocontext` | question only, the memorization control |
+| `rerank_topk` | cross-encoder rerank, keep top-k, the baseline |
+| `provence_rerank` | Provence's reranker only, original passage text |
+| `provence_full` | Provence as published, with sentence-pruned text |
+| `llmlingua2` | token-level compression, budget spent as a rate |
+| `llm_pruner` | ask the generator which passages to keep |
+| `random_drop` | noise floor |
+| `placebo_pos` | drop k by position, not content, in three variants |
+| `loo_oracle` | keep the k passages with the largest leave-one-out log-probability drop |
+
+The placebo is the novel control. It discards exactly as many passages as the
+method under test, but chooses them by position alone and never reads their
+content. If a method cannot beat it at equal keep-count, the method is not doing
+content selection.
+
+### 3.6 Derived quantities
+
+**Order-Adjusted Effect (OAE)** is a method's gain over the baseline divided by
+the baseline's within-question permutation standard deviation. It answers how
+many orderings-worth of noise the choice of method actually buys.
+
+**Rank Flip Rate (RFR)** is the fraction of method-pair comparisons whose sign
+reverses under some single ordering.
+
+**Placebo Gap** is quality against the position-matched placebo at equal
+keep-count. This provides the primary endpoint.
+
+**Oracle Gap** is the headroom against the leave-one-out ceiling.
+
+### 3.7 Statistics
+
+Permutations are nested within questions, so the P by N cells are not
+independent. Treating them as independent would inflate the effective sample size
+fivefold and manufacture significance. All resampling is therefore two-level: the
+unit is the question, and all five of its permutations travel with it. The test
+suite contains a regression guard that constructs data with strong
+between-question and weak within-question variation and asserts that the correct
+interval is more than 1.5 times wider than the flattened one.
+
+All comparisons are paired, restricted to the questions shared by the arms being
+compared, with the point estimate drawn from the same restricted population that
+is resampled. Bootstrap intervals use 10,000 replicates at 95%. Multiplicity is
+controlled by Holm correction across one pre-registered family of nine
+confirmatory comparisons: the OAE against the baseline for four methods, and the
+Placebo Gap for those four plus the baseline. Arms outside that family are
+reported with intervals but never corrected, since widening a Holm family changes
+the adjusted values of everything inside it. Confidence intervals rather than
+p-values are the primary presentation.
+
+The analysis plan was registered before any main-run data existed, fixing the
+hypotheses, the primary endpoint, the analysis population, the thresholds and the
+multiplicity family. It remains retrievable from version control at the
+registration commit.
+
+---
+
+## 4. Results
+
+The main run comprises 45,510 generations: eleven arms by 274 questions by three
+budgets by five permutations, plus the no-context baseline.
+
+### 4.1 RQ1: order sensitivity is real, and it is bimodal
+
+Mean within-question standard deviation of token-F1 across permutations, at
+k = 3, is 0.1795 (95% CI [0.1554, 0.2038]) for the full-context arm and between
+0.057 and 0.121 for every other arm. Every interval excludes zero. The full
+context is clearly separated from every pruning arm, which is the expected
+direction: pruning leaves fewer passages to reorder, so it reduces the amount of
+order sensitivity available.
+
+Within the pruning arms, the standard deviation rises monotonically with the
+budget in every case. The full-context arm is flat across budgets at 0.1795,
+which is not an exception but a consequence of its definition: it ignores the
+budget and always presents all ten passages.
+
+The distribution matters more than its centre. At k = 3 on the analysis
+population, exactly **137 of 274 questions (50.0%) have a within-question
+standard deviation of exactly zero**, meaning their answer is completely
+unaffected by any of the five orderings. The other 137 move, and they move a
+great deal: the median standard deviation among them is **0.3912** and the
+maximum is 0.5477.
+
+This produces a statistical trap that is worth stating plainly, because the
+study's own pre-registered kill criterion was a median. The median of the whole
+distribution is **0.0186**, which is the midpoint of the largest zero and the
+smallest non-zero value. It is not a measure of central tendency of anything; it
+is an artifact of exactly half the questions sitting at zero. One additional
+static question would move it to 0.0000 while leaving the moving half completely
+unchanged. The pilot showed the same pathology at a different value, and the
+analysis plan was amended before the main run to register a distributional
+presentation of RQ1 for precisely this reason.
+
+The finding to carry forward is therefore not a median. It is that **half of
+these questions are perfectly stable under reordering and half swing by roughly
+0.39 token-F1 on identical content under greedy decoding**.
+
+### 4.2 RQ4, the primary endpoint: pruners are doing content selection
+
+The pre-registered primary endpoint is the Placebo Gap of `provence_rerank`
+against `placebo_pos:middle_first` at k = 3 in token-F1 on the filtered
+population.
+
+```
++0.2760   95% CI [0.2223, 0.3297]   uncorrected p = 0.0002   Holm p = 0.0018
+```
+
+Both the uncorrected and the corrected value are reported, always, so that the
+choice between them cannot be made after seeing which is more favourable.
+
+The result holds at every budget, and it holds for every method in the
+confirmatory family. All fifteen confirmatory Placebo Gap comparisons, five arms
+by three budgets, survive Holm correction.
+
+| Arm | k = 2 | k = 3 | k = 5 |
+|---|---|---|---|
+| `loo_oracle` | +0.3815 | +0.3536 | +0.2628 |
+| `full` | +0.3308 | +0.2869 | +0.1882 |
+| `provence_rerank` | **+0.2895** | **+0.2760** | **+0.1780** |
+| `rerank_topk` | +0.2648 | +0.2418 | +0.1612 |
+| `provence_full` | +0.2799 | +0.2075 | +0.1399 |
+| `llm_pruner` | +0.2052 | +0.1964 | +0.1496 |
+| `random_drop` | -0.0111 | -0.0190 | -0.0036 |
+| `llmlingua2` | -0.0698 | -0.0879 | -0.1648 |
+
+Five of these arms are inside the pre-registered confirmatory family
+(`provence_rerank`, `provence_full`, `llmlingua2`, `llm_pruner` and
+`rerank_topk`) and are Holm-corrected jointly. The remaining three (`full`,
+`loo_oracle` and `random_drop`) are outside it by registration and are reported
+with intervals only. They are shown here because a reference, a ceiling and a
+noise floor make the corrected rows readable, not because they were tested.
+
+Two rows carry most of the evidential weight.
+
+**The control behaves.** `random_drop` is the one arm whose placebo gap fails to
+exclude zero, and it fails to do so at all three budgets (p = 0.6264, 0.4794,
+0.9044). This is three independent opportunities for a false positive, none of
+them taken. An arm that discards passages at random should be indistinguishable
+from an arm that discards them by position, and it is. Without this row the
+positive results would be much weaker evidence, because a placebo gap that came
+out positive for everything would suggest the comparison itself was biased.
+
+**One method fails the test in the opposite direction.** `llmlingua2` is
+significantly *worse* than the positional placebo at every budget. This is
+discussed in Section 4.5.
+
+The direct answer to the motivating suspicion is therefore negative. Published
+pruners are not merely exploiting positional promotion. At matched keep-count
+they select better passages than position alone would, by a margin that is both
+large and stable across budgets.
+
+### 4.3 RQ2: the methods do not separate from a plain baseline
+
+Expressed in units of the baseline's own permutation noise, the picture changes.
+
+| Arm | k = 2 | k = 3 | k = 5 |
+|---|---|---|---|
+| `provence_rerank` | +0.3715 (p = 0.1780) | +0.2995 (p = 0.0212) | +0.1176 (p = 0.1822) |
+| `provence_full` | +0.2270 (p = 0.5330) | -0.2995 (p = 0.1038) | -0.1492 (p = 0.2818) |
+| `llm_pruner` | -0.8960 (p = 0.0194) | -0.3975 (p = 0.0570) | -0.0813 (p = 0.5196) |
+| `loo_oracle` | +1.7539 | +0.9794 | +0.7126 |
+
+The first three rows are confirmatory and Holm-corrected within the family of
+nine; uncorrected p-values are shown in the table and the corrected values are
+quoted in the text below. `loo_oracle` is outside the family and is reported as a
+ceiling with an interval rather than as a test. `llmlingua2` is omitted from this
+table for readability, since its OAE runs from -5.03 to -2.29 and compresses
+every other row; it is significantly negative at all three budgets, which is
+discussed in Section 4.5.
+
+No practical pruner survives Holm correction against the baseline at any budget.
+The best case is `provence_rerank` at the primary budget, at an uncorrected
+p = 0.0212 and a Holm-adjusted p = 0.0636. Reading only that row would suggest a
+near-miss that a larger sample might rescue. The budget sweep shows it is not:
+the same comparison gives Holm-adjusted values of 0.3560 at k = 2 and 0.5466 at
+k = 5. The effect is not marginal everywhere, it is absent at two budgets out of
+three.
+
+The registered hypothesis H2 predicted an OAE below 0.5 for published pruners,
+and that is what is observed for every practical method. The only arm that clears
+one full ordering's worth of noise is the leave-one-out oracle, at +0.9794 (95%
+CI [0.5451, 1.5066]) at the primary budget, which puts the entire headroom from a
+deployed method to a cheating upper bound at roughly one permutation's worth of
+noise.
+
+The summary is that **the choice of pruning method matters less than the ordering
+it happens to be evaluated under**.
+
+### 4.4 RQ3: rankings are far more stable than answers
+
+| Budget | Rank Flip Rate | 95% CI |
+|---|---|---|
+| k = 2 | 0.0267 | [0.0000, 0.1067] |
+| k = 3 | 0.0400 | [0.0133, 0.1067] |
+| k = 5 | 0.0667 | [0.0533, 0.2267] |
+
+The registered hypothesis H3 predicted a rank flip rate above 0.10. **H3 is not
+supported.** The point estimate is below the threshold at all three budgets,
+although the intervals do not exclude it. The point estimate rises with the
+budget, which is the regime real systems operate in, but the intervals overlap
+heavily and this should be read as establishing the level rather than the trend.
+
+### 4.5 Order dependence inside the methods
+
+The results above concern the answer. Two arms turn out to be order-dependent in
+their internals, which is a sharper version of the same thesis: not that the
+score moves, but that the method does something different depending on the order
+it was shown.
+
+**An LLM pruner's selection is largely a function of presentation order.** Shown
+the same ten passages in three different orders (as-given, reversed, random) and
+asked which three to keep, the model returns selections whose mean Jaccard is
+**0.213** over 100 questions. The reference points are measured rather than
+assumed: a cross-encoder run through the same three permutations returns
+**1.000**, since it scores each passage independently, and three random
+3-subsets of ten give **0.047**. The observed value therefore sits only about
+17% of the way from redrawing at random to being determined by the content. **The
+selection changed in 98 of 100 questions, and in 23 of them the three
+presentations produced sets with no passage in common at all.**
+
+The consequence for the literature is that a published LLM-pruner result is one
+draw from a distribution over selections that its paper does not report. As noted
+in Section 2, the underlying order sensitivity is not itself novel; what is new
+is that it reaches the selection step and that no evaluation controls for it.
+
+**LLMLingua-2's compression is also order-dependent**, when applied in the usual
+way to a concatenated context. Asking whether a given passage's surviving text is
+identical across orderings, joint compression preserved **0 of 100** passages
+while per-passage compression preserved **100 of 100**. This is the more
+surprising of the two results, since LLMLingua-2 is a deterministic token
+classifier rather than a prompted model, and it is not a corollary of the
+in-context-learning literature. It is also the reason this arm compresses each
+passage independently: compressing jointly would give each of the five
+permutations different content, breaking the one invariant the design rests on,
+in the very arm intended to test ordering.
+
+**Why LLMLingua-2 loses to a placebo.** At k = 3 the arm retains both gold
+passages in every case (mean gold retained 2.000, against 0.650 for the placebo)
+and emits a slightly longer context (median 1,643 characters against 1,552), yet
+scores 0.0983 mean token-F1 against the placebo's 0.1862. Evidence in shredded
+form is worth less than half the evidence intact. One caution against
+over-reading the budget trend: because the budget is spent as a compression rate,
+a higher k means less compression, and the arm improves monotonically with the
+budget. The widening gap to the placebo is a floor effect in the comparator,
+which is still acquiring gold passages as k grows, rather than a degradation of
+the method.
+
+### 4.6 Arm-level behaviour worth reporting
+
+**The LLM pruner frequently fails to comply with its budget.** Across 822 cells
+it named fewer passages than requested in 200 of them (24.3%) and produced
+unparseable output in a further 28. Deficits are filled deterministically from
+the as-given order and counted rather than silently absorbed. This is a separate
+defect from the order sensitivity above, and it is a finding about deployed
+practice rather than about the method's ceiling.
+
+**The leave-one-out oracle is weaker than expected, and its ranking is partly
+arbitrary.** At full scale its gold recall is 0.694, and **45.8% of single-passage
+removals actually raise the answer's log-probability**. The distribution of
+log-probability drops is severely skewed, with a median of 0.008 against a mean of
+1.285 and a maximum of 123.5, so a typical passage moves the answer essentially
+not at all while a handful dominate every aggregate. Consistent with this, 23.6%
+of cells have ties at the selection boundary, and its selection order-Jaccard is
+0.171. Where passages are indistinguishable the selection is decided by arbitrary
+tie-breaking rather than by position, and those are different claims that should
+not be merged.
+
+---
+
+## 5. Discussion
+
+**The two central results are in tension, and the tension is the point.** RQ1
+finds that reordering identical content changes the answer for half of all
+questions, often dramatically. RQ3 finds that only about 4% of method-pair
+rankings reverse across orderings. Both are true, and they are not contradictory.
+Per-question volatility is large but largely uncorrelated across questions, so it
+averages out when arms are compared at the level of a dataset mean. Order
+destabilises answers far more than it destabilises conclusions. A reader
+encountering both numbers will perceive a contradiction unless it is addressed
+directly.
+
+This has a practical reading in both directions. For a practitioner deploying a
+system, the instance-level result is the relevant one: for half of user questions,
+an arbitrary implementation detail about passage ordering determines whether the
+answer is right. For a researcher comparing methods on a benchmark, the aggregate
+is more stable than the instance-level volatility would suggest, which is
+reassuring about the existing literature's conclusions, though 4% is not zero and
+it rises with the budget.
+
+**The motivating suspicion was not confirmed, and this is a useful result.** The
+study was designed around the possibility that pruning gains are substantially
+positional artifacts. The primary endpoint rejects that cleanly, with a
+well-behaved control. Published pruners select better passages than position
+alone. Reporting this plainly matters more than the fact that it was not the
+anticipated outcome, and the position-matched placebo remains the right control
+to run precisely because it could have gone the other way and did not.
+
+**The null in RQ2 is the more uncomfortable finding.** Once a method's gain is
+divided by the permutation noise of a plain cross-encoder baseline, none of the
+practical methods separate from it, at any budget, after correction. The methods
+are doing real content selection, as RQ4 shows, but they are not doing
+detectably better content selection than reranking and truncating. Combined with
+the oracle result, the entire distance from a deployed pruner to a cheating upper
+bound is about one ordering's worth of noise. This suggests that reporting a
+pruning result without a permutation-noise denominator can make a difference
+visible that is smaller than the variation induced by an arbitrary presentation
+choice.
+
+**Order dependence inside a method is a distinct and stronger claim.** The
+selection instability of the LLM pruner, and the compression instability of
+LLMLingua-2, are not statements about noisy evaluation. They say the method
+itself computes a different function of the same inputs depending on presentation
+order. For LLMLingua-2 in particular, a deterministic classifier that preserves
+no passage identically across orderings is a result that its intended usage
+pattern makes invisible.
+
+---
+
+## 6. Limitations
+
+**Off-the-shelf checkpoints are used out of distribution.** Each pruner is run as
+published on a dataset it was not tuned for. This measures deployed-as-published
+behaviour, not each method's ceiling, and a method could perform better after
+adaptation.
+
+**One dataset and one generator family, so far.** The main run is HotpotQA
+distractor with Qwen2.5-3B-Instruct. A cross-family probe on a 7B model outside
+the Qwen lineage confirms that a permutation effect exists there as well (64.6%
+of questions move, against 50.0% here), but that probe used a different
+population, three permutations rather than five and a weaker model, so it
+supports the existence of the effect outside one model family and not any
+comparison of magnitude. A hosted cross-generator replication at 27B is partially
+complete.
+
+**"Rank" is the dataset's as-given order.** HotpotQA distractor has no retriever,
+so the reference ordering is the dataset's own paragraph order rather than a
+retrieval ranking.
+
+**Two arms are not keep-count matched.** The full-context arm and LLMLingua-2
+have no keep-count by construction and are compared on input-token count instead.
+LLMLingua-2 additionally presents n permutable units where a keep-k arm presents
+k, so its raw permutation variance is not comparable in magnitude to the others.
+
+**The median is not a usable summary of RQ1 on this distribution**, as Section
+4.1 shows. This limits comparison with any prior work that reports a median
+instead of a distribution.
+
+**Licensing.** The Provence checkpoint is released under a non-commercial,
+no-derivatives licence, which restricts reuse of that arm outside research.
+
+---
+
+## 7. What remains
+
+- The hosted cross-generator replication at 27B is partially complete and is
+  rate-limited rather than blocked.
+- A second dataset, 2WikiMultihopQA, is not yet run.
+- The write-up above covers RQ1 to RQ4 and the two internal order-dependence
+  results. Sections 5 and 6 will need revision once the replication legs land.
+
+---
+
+## 8. Reproduction
+
+All quantities above are computed by committed code from committed artifacts.
+The permutation analysis is regenerated with a single command over the run's
+generation table, the figures are drawn from that analysis rather than
+recomputing anything, and the selection-stability probe writes its own artifact.
+The analysis plan was registered in version control before any main-run data
+existed, and every departure from it, together with every exploratory addition,
+is recorded and dated in the plan's protocol-deviation section.

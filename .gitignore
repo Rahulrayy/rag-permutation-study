@@ -37,3 +37,6 @@ analysis/figures/
 # commit even though it is no longer present at HEAD.
 *.md
 !README.md
+# The technical write-up is the detailed companion to README.md and is
+# published with it; the other working documents stay local.
+!WRITEUP.md
