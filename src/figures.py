@@ -136,7 +136,7 @@ def _tick_labels(arms: Sequence[str]) -> tuple[list[str], bool]:
 def _keep_count_footnote(fig: Any) -> None:
     fig.text(
         0.005, -0.012,
-        "†  budget is not a keep-count — `full` prunes nothing, `llmlingua2` spends it as a "
+        "†  budget is not a keep-count. `full` prunes nothing, `llmlingua2` spends it as a "
         "compression rate. These two are matched on input-token count, not on k "
         "(ANALYSIS_PLAN Sec. 4.3), so their row is not a matched-k comparison.",
         fontsize=7.5, color="#555555", ha="left", va="top",
@@ -508,7 +508,7 @@ def fig_selection_stability(probe: Mapping[str, Any]) -> Any:
     ax_dist.legend(frameon=False, fontsize=8.5, loc="upper center")
     ax_dist.set_title(
         f"The pruner picks different passages when shown the same passages in a different order\n"
-        f"{cfg['model']}, n={summary['n']} queries, k={cfg['budget']}, greedy — "
+        f"{cfg['model']}, n={summary['n']} queries, k={cfg['budget']}, greedy. "
         f"the selection changed in {summary['n_changed']} of {summary['n']}",
         loc="left", fontsize=10.5,
     )
@@ -543,7 +543,7 @@ def fig_selection_stability(probe: Mapping[str, Any]) -> Any:
         0.005, 0.005,
         "A robustness check, outside the registered confirmatory family. LLM order-sensitivity is "
         "well established in the in-context-learning and\nmultiple-choice literature; the claim here is "
-        "narrower — that the known effect reaches into a pruner's selection, and that no published "
+        "narrower: that the known effect reaches into a pruner's selection, and that no published "
         "LLM-pruner\nevaluation controls for it.",
         fontsize=7.5, color="#555555", ha="left", va="bottom",
     )

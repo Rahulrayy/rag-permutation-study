@@ -5,7 +5,7 @@ context selection in RAG.
 
 Reorder the passages in a RAG context without changing a word of them, and the
 answer changes. Every published context-pruning method is evaluated in one fixed
-order — and pruning itself *moves* passages between positions. This study
+order, and pruning itself *moves* passages between positions. This study
 measures how much of a reported pruning gain is actually that.
 
 ---
@@ -35,7 +35,7 @@ output.** This is the sharper version of the thesis: not "the score moves" but
 
 - **An LLM asked which passages to keep picks different ones when shown the same
   passages in a different order.** Selection Jaccard across three presentations is
-  **0.213** over 100 questions — against **1.000** for a cross-encoder scored
+  **0.213** over 100 questions, against **1.000** for a cross-encoder scored
   through the same permutations, and **0.047** for chance. **The selection changed
   in 98 of 100 questions, and in 23 of them the three presentations shared no
   passage at all.** So a published LLM-pruner result is one draw from a
@@ -58,7 +58,7 @@ Status.*
 
 ## Related work, and what is genuinely new here
 
-Order sensitivity in LLMs is well established — in-context example order moves
+Order sensitivity in LLMs is well established. In-context example order moves
 few-shot accuracy by tens of points, multiple-choice option order by up to 75%,
 lost-in-the-middle describes the positional shape of it, and benchmarks such as
 RGB have shuffled retrieved documents and confirmed order matters. Context
@@ -68,9 +68,9 @@ budget-constrained selection under token limits.
 What is missing is the **join**. A literature re-check in August 2026 found no
 work that evaluates pruning methods under multiple permutations with content held
 fixed, none that runs a position-matched placebo, and none that reports how often
-method rankings flip across orderings. Nearest neighbours — conformal
-coverage-controlled filtering (arXiv 2511.17908), answer-survival diagnostics for
-budgeted packing (arXiv 2607.00725) — address adjacent questions and use a single
+method rankings flip across orderings. The nearest neighbours, conformal
+coverage-controlled filtering (arXiv 2511.17908) and answer-survival diagnostics
+for budgeted packing (arXiv 2607.00725), address adjacent questions and use a single
 fixed ordering throughout.
 
 A note on the LLM-pruner result above: that an LLM's selection is order-sensitive
@@ -84,8 +84,8 @@ deterministic token classifier rather than a prompted model.
 ## Why this is a gap
 
 Context pruning is a crowded subfield: a dozen methods claim they can discard
-60–90% of retrieved context with little quality loss. Every one is evaluated with
-the passages in one fixed order — usually retriever rank. Separately, other work
+60 to 90% of retrieved context with little quality loss. Every one is evaluated with
+the passages in one fixed order, usually retriever rank. Separately, other work
 has established that RAG answers are unstable under permutation of that same set.
 
 Nobody has put those two facts together. Pruning does not only remove content, it
@@ -103,13 +103,13 @@ a number.
   retrieval needed. Rows not shipping exactly ten paragraphs are excluded
   (60/7,405, 0.81%) so a position, a positional bucket and a keep-k budget mean
   the same thing across questions.
-- **Generator.** Qwen2.5-3B-Instruct, 4-bit, local — because leave-one-out
+- **Generator.** Qwen2.5-3B-Instruct, 4-bit, local, because leave-one-out
   attribution needs the log-probability of the answer sequence, which hosted APIs
   generally do not expose.
 - **Greedy decoding everywhere.** Sampling noise and permutation noise would be
   confounded and every number would be meaningless. Guarded in three places.
 - **The permutation protocol.** For every (question, arm, budget) cell, generate
-  under P=5 orderings of the *kept* passages — as-given, reverse, and three seeded
+  under P=5 orderings of the *kept* passages: as-given, reverse, and three seeded
   random. Random orderings are seeded per question, so the three draws are not one
   shared trio reused across the dataset.
 - **Selection, rewriting and ordering are three separate steps.** `select()`
@@ -121,30 +121,30 @@ a number.
 | Arm | What it is |
 |---|---|
 | `full` | all ten passages, upper reference |
-| `nocontext` | question only — the memorization control |
+| `nocontext` | question only, the memorization control |
 | `rerank_topk` | cross-encoder rerank, keep top-k. The OAE denominator |
 | `provence_rerank` | Provence's reranker only, original text |
 | `provence_full` | Provence as published, sentence-pruned text |
 | `llmlingua2` | token-level compression, budget spent as a rate |
 | `llm_pruner` | ask the generator which passages to keep |
 | `random_drop` | noise floor |
-| **`placebo_pos`** | **drop k by position, not content — the novel control** |
+| **`placebo_pos`** | **drop k by position, not content, the novel control** |
 | `loo_oracle` | keep the k passages with the largest LOO log-prob drop |
 
 ### Derived quantities
 
-**Order-Adjusted Effect** — a method's gain over baseline, divided by the
+**Order-Adjusted Effect** is a method's gain over baseline, divided by the
 baseline's within-question permutation SD. How many orderings-worth of noise does
-this method actually buy you. **Rank Flip Rate** — the fraction of method-pair
-comparisons whose sign reverses under some single ordering. **Placebo Gap** —
+this method actually buy you. **Rank Flip Rate** is the fraction of method-pair
+comparisons whose sign reverses under some single ordering. **Placebo Gap** is
 quality against the position-matched placebo at equal keep-count; near zero means
-the method is not doing content selection. **Oracle Gap** — headroom against the
+the method is not doing content selection. **Oracle Gap** is the headroom against the
 leave-one-out ceiling.
 
 ## Statistics
 
 Permutations are nested within questions, so the P×N cells are **not**
-independent — treating them as such inflates n by 5× and manufactures
+independent, and treating them as such inflates n by 5× and manufactures
 significance. The resampling unit is the question, and all P of its permutations
 travel with it. The test suite contains a regression guard that builds data with
 strong between-question and weak within-question variation and asserts the correct
@@ -153,7 +153,7 @@ CI is >1.5× wider than the flattened one.
 Paired comparisons throughout. Holm correction across one family of nine
 confirmatory comparisons. CIs, not p-values, as the primary presentation.
 
-The analysis was **pre-registered before any main-run data existed** — hypotheses,
+The analysis was **pre-registered before any main-run data existed**: hypotheses,
 thresholds, primary endpoint, analysis population and multiplicity family all
 fixed and committed in advance. Retrievable from git history at commit `2f24548`.
 
@@ -189,12 +189,12 @@ numbers are meaningless by construction), `--n 20` shrinks the question set,
 | Piece | State |
 |---|---|
 | `data.py`, `chunks.py`, `cache.py`, `metrics.py`, `stats.py`, `gate.py`, `run.py`, `smoke.py` | done |
-| `generate.py` — local 4-bit generator, greedy, answer log-probs | done |
+| `generate.py`, the local 4-bit generator, greedy, answer log-probs | done |
 | arms `full` / `nocontext` / `random_drop` / `placebo_pos` (3 variants) | done |
 | arms `rerank_topk` / `provence_rerank` / `provence_full` / `llm_pruner` / `llmlingua2` | done |
-| arm `loo_oracle` | done — ran at full scale, n=274 |
-| main run + confirmatory analysis | done — 45,510 rows |
-| figures — one per research question, plus the selection probe, `python -m src.figures` | done |
+| arm `loo_oracle` | done, ran at full scale, n=274 |
+| main run + confirmatory analysis | done, 45,510 rows |
+| figures, one per research question, plus the selection probe, `python -m src.figures` | done |
 | 2WikiMultihopQA + hosted cross-generator replication | to come |
 
 **222 tests** pass (`python -m pytest -q -m "not network"`, ~10s). Three are
@@ -205,7 +205,7 @@ deselects them.
 
 Off-the-shelf pruner checkpoints are used out of distribution relative to their
 training data, so this measures deployed-as-published behaviour, not each method's
-ceiling. The Provence checkpoint is `cc-by-nc-nd-4.0` — non-commercial. `rank` is
+ceiling. The Provence checkpoint is `cc-by-nc-nd-4.0`, non-commercial. `rank` is
 the dataset's **as-given** order, not a retriever ranking; HotpotQA distractor has
 no retriever, and the term is reserved for the NQ-open arm. `llmlingua2` presents
 n permutable slots where a keep-k arm presents k, so its raw permutation variance
