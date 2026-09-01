@@ -168,3 +168,67 @@ def test_analyze_errors_without_generations_csv(tmp_path):
     })
     with pytest.raises(FileNotFoundError, match="generations.csv"):
         analyze(cfg)
+
+
+def _write_mixed_sign_csv(path, n_queries=12, n_perms=3, budget="3"):
+    """Like `_write_csv`, but arm differences flip sign across queries.
+
+    `_write_csv` makes every arm strictly dominate the next on every query, so
+    every bootstrap replicate lands the same side of zero and `p_two_sided`
+    returns `2 * (1/n)` -- built from a Python float, which serialises. Real
+    results are not like that: a p-value strictly between `2/n` and 1 is
+    computed from `np.float64`, and then `p < 0.05` is an `np.bool_`, which
+    `json.dump` cannot write. This fixture reproduces that regime.
+    """
+    fields = ["qid", "arm", "budget", "perm", "perm_strategy", "hop_type", "kept",
+              "order", "gold_positions", "n_gold_kept", "context_chars",
+              "prediction", "gold", "em", "f1"]
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=fields)
+        w.writeheader()
+        for q in range(n_queries):
+            for a_i, arm in enumerate(ARMS):
+                for p_i in range(n_perms):
+                    # Every fourth query inverts the arm ordering, so the
+                    # paired difference between any two arms is positive on most
+                    # queries and negative on the rest. The proportion is not
+                    # arbitrary: it has to put an adjusted p-value strictly
+                    # between the 2/n floor and 1.0, because Holm returns a
+                    # plain 1.0 anywhere it clamps and the numpy scalar is lost.
+                    rank = (len(ARMS) - a_i) if q % 4 == 0 else (a_i + 1)
+                    score = (rank / len(ARMS)) * (1.0 - 0.1 * p_i)
+                    w.writerow({
+                        "qid": f"q{q}", "arm": arm, "budget": budget, "perm": p_i,
+                        "perm_strategy": "seeded", "hop_type": "bridge",
+                        "kept": "[]", "order": "[]", "gold_positions": "[]",
+                        "n_gold_kept": 1, "context_chars": 100,
+                        "prediction": "x", "gold": "x",
+                        "em": round(score, 4), "f1": round(score, 4),
+                    })
+    return path
+
+
+def test_analysis_output_is_json_serialisable(tmp_path):
+    """The whole point of the driver is a file on disk; numpy scalars break it.
+
+    Regression for a crash that cost a 25-minute budget: `analyze_budget`
+    returned `np.bool_` for `significant_holm`, `json.dump` raised
+    `TypeError: Object of type bool is not JSON serializable` at the first
+    checkpoint, and because the checkpoint opens the file in "w" mode the
+    previous analysis on disk was truncated as well.
+    """
+    csv_path = _write_mixed_sign_csv(tmp_path / "generations.csv")
+    scores = load_scores(csv_path, "f1", "3")
+    out = analyze_budget(scores, "rerank_topk", "placebo_pos:middle_first",
+                         "loo_oracle", n_replicates=200, ci=0.95, seed=1,
+                         verbose=False)
+
+    members = out["confirmatory_family"]["members"]
+    # The regime the fixture exists to produce: at least one p-value that is
+    # neither the 2/n floor nor 1.0, i.e. one that came through numpy.
+    assert any(2 / 200 < m["p_raw"] < 1.0 for m in members.values())
+    for key, member in members.items():
+        assert type(member["significant_holm"]) is bool, (
+            f"{key}: {type(member['significant_holm'])} is not a plain bool"
+        )
+    json.dumps(out)  # the actual failure mode, asserted end to end

@@ -30,6 +30,7 @@ import argparse
 import collections
 import csv
 import json
+import os
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -239,7 +240,12 @@ def analyze_budget(
                 "point": (rq2 if key.startswith("OAE:") else rq4)[key.split(":", 1)[1]]["point"],
                 "p_raw": family[key],
                 "p_holm": adjusted[key],
-                "significant_holm": adjusted[key] < 0.05,
+                # bool(), because `adjusted[key]` is a numpy float
+                # wherever the p-value came through numpy, and np.bool_
+                # is NOT a bool subclass the way np.float64 is a float
+                # subclass -- json.dump serialises the floats happily and
+                # then dies on this one field.
+                "significant_holm": bool(adjusted[key] < 0.05),
             }
             for key in family
         },
@@ -315,9 +321,17 @@ def analyze(cfg: Config, budgets: Sequence[str] | None = None, metric: str = "f1
         )
         # Checkpoint after every budget: the whole grid is ~70 minutes and the
         # primary result is finished within the first third of it.
-        with open(out_path, "w", encoding="utf-8") as fh:
+        #
+        # Serialise to a temporary file and rename, rather than opening the real
+        # path in "w" mode. Opening it truncates immediately, so a dump that
+        # raises partway -- as one did on 2026-09-01, on a numpy scalar --
+        # loses the previous analysis as well as failing to write the new one.
+        # os.replace is atomic on Windows and POSIX alike.
+        tmp_path = out_path.with_name(out_path.name + ".tmp")
+        with open(tmp_path, "w", encoding="utf-8") as fh:
             json.dump(out, fh, indent=2, sort_keys=True)
             fh.write("\n")
+        os.replace(tmp_path, out_path)
         print(f"\n[checkpoint] budget {budget} -> {out_path}", flush=True)
 
     return out
