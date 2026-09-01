@@ -34,9 +34,13 @@ protocol, two controls nobody runs, and a set of numbers.
 
 **1. Reordering an identical context changes the answer about half the time.**
 Same passages, same words, greedy decoding, only the order differs. Half of
-questions are completely unaffected. The other half swing by about 0.39 token-F1,
-which is enormous. There is no "typical" question: the distribution has two modes
-and almost nothing in between.
+questions swing by about 0.39 token-F1, which is enormous. There is no "typical"
+question: the distribution has two modes and almost nothing in between.
+
+Being careful about what "unchanged" means: on the other half the *score* does not
+move, but the model still gives a different answer on 14% of all questions, wrong
+in a different way each time and scoring zero either way. Only **36%** of
+questions return the identical answer under all five orderings.
 
 ![Within-question variation under reordering](results/main_hotpotqa/figures/rq1_permutation_sd.png)
 
@@ -67,9 +71,11 @@ scores.** This is the sharper version of the thesis.
   them the three attempts had no passage in common at all.**
 - LLMLingua-2 compresses a concatenated context differently depending on the
   order it is given: **0 of 100** passages survive identically across orderings
-  when it is applied the normal way, to the whole context at once. It is a
-  deterministic classifier, not a prompted model, which makes this the more
-  surprising of the two.
+  when applied the normal way, to the whole context at once. Unlike the pruner
+  this is expected rather than anomalous, since reordering genuinely changes its
+  input. What is worth knowing is the scale of it, because people treat the
+  compressed output as a property of the passage set and not one passage in a
+  hundred survives that assumption.
 
 The LLM pruner also fails to name the requested number of passages in **24.3%**
 of cases, and that rate reproduces to four decimal places on a 27B model from a
@@ -149,8 +155,9 @@ more are marked `network` and download the dataset on first run.
 Pruner checkpoints are used as published on a dataset they were not tuned for, so
 this measures deployed behaviour rather than each method's ceiling. Results are
 from one dataset and one model family, which is the main limitation, with a
-cross-family probe confirming the effect exists elsewhere but not its size. `rank` here means the dataset's given
-order, not a retriever ranking, since the distractor setting has no retriever. The
+cross-family probe confirming the effect exists elsewhere but not its size. The
+reference ordering is the dataset's own "as-given" paragraph order rather than a
+retriever ranking, since the distractor setting has no retriever. The
 Provence checkpoint is non-commercial (`cc-by-nc-nd-4.0`).
 
 The full list is in [`WRITEUP.md`](WRITEUP.md), Section 6.

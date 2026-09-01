@@ -12,6 +12,21 @@ import random
 from dataclasses import dataclass, field
 from typing import Any, Literal, Sequence
 
+#: ``rank`` is the dataset's **as-given** order, not a retriever ranking:
+#: HotpotQA distractor ships no retriever and nothing here ranks anything. The
+#: write-up therefore calls it "as-given" throughout and avoids the word rank.
+#:
+#: The identifier is deliberately NOT renamed to ``as_given``, though it reads
+#: better, and the reason is worth recording so the question is not reopened
+#: without the facts. It is safe in one respect and unsafe in another. Safe: the
+#: strategy name never reaches a prompt and never enters a cache key, and the
+#: random seed is ``(seed, key, replicate, n)`` with no strategy in it, so
+#: renaming could not alter a single ordering. Unsafe: this string is written to
+#: the ``perm_strategy`` column of every completed run and appears in
+#: ``configs/main.yaml``, which is the registered configuration a finished
+#: 45,510-row run was made under. Renaming it would make the shipped config stop
+#: matching the data that config produced, for a purely cosmetic gain, and the
+#: term that actually confuses readers lives in prose rather than in code.
 PermStrategy = Literal["rank", "reverse", "random"]
 
 
