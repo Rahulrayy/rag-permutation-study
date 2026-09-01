@@ -483,7 +483,16 @@ degradation of the method.
 
 **The LLM pruner frequently fails to comply with its budget.** Across 822 cells
 it named fewer passages than requested in 200 of them (24.3%) and produced
-unparseable output in a further 28. Deficits are filled deterministically from
+unparseable output in a further 28.
+
+**This rate reproduces across generators.** The partially complete hosted
+replication uses a 27B model from a different size class, and over its 148
+completed selection cells the under-selection rate is **0.2432**, against
+**0.2433** locally. Agreement to four decimal places across a 3B local model and
+a 27B hosted one, on different sample sizes, suggests the behaviour is a property
+of asking a language model to name k items rather than a quirk of one small
+model. It is the one cross-generator result already in hand; the permutation
+numbers from that run are not yet complete. Deficits are filled deterministically from
 the as-given order and counted rather than silently absorbed. This is a separate
 defect from the order sensitivity above, and it is a finding about deployed
 practice rather than about the method's ceiling.
@@ -603,8 +612,9 @@ the Qwen lineage confirms that a permutation effect exists there as well (64.6%
 of questions move, against 50.0% here), but that probe used a different
 population, three permutations rather than five and a weaker model, so it
 supports the existence of the effect outside one model family and not any
-comparison of magnitude. A hosted cross-generator replication at 27B is partially
-complete.
+comparison of magnitude. A hosted cross-generator replication at 27B is
+partially complete, at 1,610 of roughly 1,655 calls, held up by a
+tokens-per-day quota rather than by anything about the method.
 
 **"Rank" is the dataset's as-given order.** HotpotQA distractor has no retriever,
 so the reference ordering is the dataset's own paragraph order rather than a
@@ -626,9 +636,13 @@ no-derivatives licence, which restricts reuse of that arm outside research.
 
 ## 7. What remains
 
-- The hosted cross-generator replication at 27B is partially complete and is
-  rate-limited rather than blocked. Sections 5 and 6 will need revision once it
-  lands.
+- The hosted cross-generator replication at 27B is **1,610 of roughly 1,655
+  calls complete**, with 45 remaining. It is rate-limited by a tokens-per-day
+  quota rather than blocked, and every completed call is cached, so it resumes
+  rather than restarts. Sections 5 and 6 will need revision once it lands. Note
+  what it can and cannot establish: it is a **scale** check, 3B to 27B, and not a
+  family check, since both models share a training lineage. A separate
+  cross-family probe covers that and is reported in Section 6.
 - The related-work citations are described rather than formally cited, and need
   checking against the papers before they become a bibliography.
 - **A second dataset is prepared but not run.** The loader and config for

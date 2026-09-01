@@ -71,6 +71,11 @@ scores.** This is the sharper version of the thesis.
   deterministic classifier, not a prompted model, which makes this the more
   surprising of the two.
 
+The LLM pruner also fails to name the requested number of passages in **24.3%**
+of cases, and that rate reproduces to four decimal places on a 27B model from a
+different size class (0.2432 against 0.2433), so it is a property of asking a
+model to name k items rather than a quirk of one small model.
+
 **Memorization is not the explanation.** Only 10% of questions can be answered
 with no passages at all, and the analysis is restricted to the questions the
 model gets wrong without context.
@@ -134,7 +139,7 @@ numbers are meaningless by construction), `--n 20` shrinks the question set,
 | pipeline, all 11 arms, caching, statistics | done |
 | main run, 45,510 generations | done |
 | confirmatory analysis and figures | done |
-| hosted cross-generator replication at 27B | partly done, rate-limited |
+| hosted cross-generator replication at 27B | 1,610 of ~1,655 calls, rate-limited |
 
 **231 tests** pass (`python -m pytest -q -m "not network"`, about 10s). Three
 more are marked `network` and download the dataset on first run.
