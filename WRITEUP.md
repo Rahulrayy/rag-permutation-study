@@ -2,9 +2,9 @@
 
 ## A permutation-controlled re-evaluation of context selection in retrieval-augmented generation
 
-**Draft, 2026-09-01.** Sections 1 to 6 are written against the completed
-HotpotQA main run. The second dataset and the hosted cross-generator replication
-are not yet finished, and Section 7 says what remains.
+**Draft, 2026-09-01.** Written against the completed HotpotQA main run. The
+hosted cross-generator replication is not finished, and Section 7 says what
+remains.
 
 All numbers here are from the corrected run. An earlier version reported the
 `llmlingua2` arm wrongly because of a caching defect; Section 4.7 documents it,
@@ -595,8 +595,10 @@ published on a dataset it was not tuned for. This measures deployed-as-published
 behaviour, not each method's ceiling, and a method could perform better after
 adaptation.
 
-**One dataset and one generator family, so far.** The main run is HotpotQA
-distractor with Qwen2.5-3B-Instruct. A cross-family probe on a 7B model outside
+**One dataset, and one generator family.** The main run is HotpotQA distractor
+with Qwen2.5-3B-Instruct, and this is the study's principal limitation. Whether
+the result generalises to another multi-hop dataset is untested, and a
+single-dataset finding should be read as such. A cross-family probe on a 7B model outside
 the Qwen lineage confirms that a permutation effect exists there as well (64.6%
 of questions move, against 50.0% here), but that probe used a different
 population, three permutations rather than five and a weaker model, so it
@@ -625,10 +627,21 @@ no-derivatives licence, which restricts reuse of that arm outside research.
 ## 7. What remains
 
 - The hosted cross-generator replication at 27B is partially complete and is
-  rate-limited rather than blocked.
-- A second dataset, 2WikiMultihopQA, is not yet run.
-- The write-up above covers RQ1 to RQ4 and the two internal order-dependence
-  results. Sections 5 and 6 will need revision once the replication legs land.
+  rate-limited rather than blocked. Sections 5 and 6 will need revision once it
+  lands.
+- The related-work citations are described rather than formally cited, and need
+  checking against the papers before they become a bibliography.
+- **A second dataset is prepared but not run.** The loader and config for
+  2WikiMultihopQA exist and are tested, so the protocol transfers without
+  modification: the same ten paragraphs per question and the same column layout.
+  Characterising it surfaced one thing a future run must handle. Its
+  `bridge_comparison` questions carry **four** gold paragraphs rather than two,
+  which is **2,751 of 12,576 validation rows (21.88%)**, and they are excluded
+  under the rule fixed in advance for later datasets, because at k = 2 such a
+  question cannot retain all its evidence even in principle and its gold recall
+  and Placebo Gap would not mean what they mean elsewhere. A replication there
+  would therefore cover three of the dataset's four question types, and would
+  need to say which one is missing.
 
 ---
 

@@ -134,7 +134,6 @@ numbers are meaningless by construction), `--n 20` shrinks the question set,
 | pipeline, all 11 arms, caching, statistics | done |
 | main run, 45,510 generations | done |
 | confirmatory analysis and figures | done |
-| 2WikiMultihopQA, second dataset | to come |
 | hosted cross-generator replication at 27B | partly done, rate-limited |
 
 **231 tests** pass (`python -m pytest -q -m "not network"`, about 10s). Three
@@ -143,9 +142,9 @@ more are marked `network` and download the dataset on first run.
 ## Main limitations
 
 Pruner checkpoints are used as published on a dataset they were not tuned for, so
-this measures deployed behaviour rather than each method's ceiling. Results so far
-are one dataset and one model family, with a cross-family probe confirming the
-effect exists elsewhere but not its size. `rank` here means the dataset's given
+this measures deployed behaviour rather than each method's ceiling. Results are
+from one dataset and one model family, which is the main limitation, with a
+cross-family probe confirming the effect exists elsewhere but not its size. `rank` here means the dataset's given
 order, not a retriever ranking, since the distractor setting has no retriever. The
 Provence checkpoint is non-commercial (`cc-by-nc-nd-4.0`).
 
