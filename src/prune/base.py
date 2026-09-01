@@ -97,6 +97,21 @@ class Pruner(ABC):
     #: calls ``attach_answers(examples)`` with the post-filter example set.
     needs_answers: bool = False
 
+    #: Set by an arm that runs its **own** model rather than the study's
+    #: generator, so its work lands in no cache and is re-paid on every restart.
+    #: `provence_*` and `llmlingua2` set it; `llm_pruner` and `loo_oracle` do not,
+    #: because their calls already go through `CachedGenerator`. ``run.py`` calls
+    #: ``attach_cache(cache)`` before selection.
+    wants_cache: bool = False
+
+    def attach_cache(self, cache: Any) -> None:
+        """Receive the run's artifact cache (called by run.py).
+
+        Default keeps a reference and nothing else; an arm that sets
+        ``wants_cache`` reads it in whatever method does the expensive work.
+        """
+        self._disk_cache = cache
+
     def close(self) -> None:
         """Release any model this pruner holds. Called once after selection.
 

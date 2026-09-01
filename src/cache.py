@@ -27,6 +27,82 @@ def cache_key(model: str, prompt: str, decode_params: dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def artifact_key(kind: str, params: dict[str, Any]) -> str:
+    """Stable content hash for a non-generation artifact.
+
+    Same discipline as `cache_key`: the key must be a pure function of
+    everything that determines the output, and of nothing else. `params` should
+    therefore carry the checkpoint, every setting that changes the result, and
+    the *content* being processed -- never a chunk index or a query id, which
+    identify a slot rather than an input. Keying on a slot is what silently
+    invalidated the llmlingua2 arm (ANALYSIS_PLAN Sec. 9, 2026-09-01).
+    """
+    payload = json.dumps({"kind": kind, "params": params}, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+class ArtifactCache:
+    """Disk cache for expensive work that is not a generation.
+
+    Selections and compressions are as costly to recompute as generations and,
+    unlike them, were only ever memoized in the process. That is invisible until
+    a long run is interrupted, at which point every encoder pass is re-paid: on
+    the 2Wiki config, where Provence and LLMLingua-2 run on CPU to leave the GPU
+    to generation, that is ~90 minutes per restart.
+
+    Deliberately a separate table in the same SQLite file, so one path in the
+    config carries both and a run's whole history moves as one artifact.
+    """
+
+    def __init__(self, path: str | Path) -> None:
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(self.path, timeout=30.0)
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS artifacts (
+                key        TEXT PRIMARY KEY,
+                kind       TEXT NOT NULL,
+                payload    TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        self._conn.commit()
+        self.hits = 0
+        self.misses = 0
+
+    def get(self, key: str) -> Any | None:
+        row = self._conn.execute(
+            "SELECT payload FROM artifacts WHERE key = ?", (key,)
+        ).fetchone()
+        if row is None:
+            self.misses += 1
+            return None
+        self.hits += 1
+        return json.loads(row[0])
+
+    def put(self, key: str, kind: str, value: Any) -> None:
+        self._conn.execute(
+            "INSERT OR REPLACE INTO artifacts (key, kind, payload) VALUES (?, ?, ?)",
+            (key, kind, json.dumps(value, ensure_ascii=False)),
+        )
+        self._conn.commit()
+
+    def __len__(self) -> int:
+        return self._conn.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0]
+
+    def close(self) -> None:
+        self._conn.close()
+
+    def __enter__(self) -> "ArtifactCache":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
+
 @dataclass
 class CachedGeneration:
     text: str

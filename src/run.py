@@ -21,7 +21,7 @@ from typing import Any, Sequence
 
 import yaml
 
-from .cache import GenerationCache, cache_key
+from .cache import ArtifactCache, GenerationCache, cache_key
 from .chunks import keep, permutation_set
 from .data import load_dataset, memorization_filter
 from .generate import (
@@ -170,6 +170,10 @@ def run(cfg: Config) -> Path:
     print(f"loaded {len(examples)} queries")
 
     generator = build_generator(cfg)
+    # Shares the generation cache's file, in a separate table. Arms that run
+    # their own encoder attach to it below, so their selections survive a
+    # restart the way generations already do.
+    artifact_cache = ArtifactCache(cfg["cache"]["path"])
     params = decode_params(cfg)
     perm_cfg = cfg["permutation"]
     arm_params = cfg.get("arm_params", {}) or {}
@@ -248,6 +252,13 @@ def run(cfg: Config) -> Path:
                 orders=perm_cfg["strategies"],
                 seed=perm_cfg.get("seed", 20260828),
             )
+        if getattr(pruner, "wants_cache", False):
+            # Arms that run their own encoder. Their work lands in no cache
+            # otherwise, so an interrupted run re-pays every selection pass on
+            # restart -- ~90 minutes on the 2Wiki config, where these arms are on
+            # CPU. Generations have always survived a restart; this gives
+            # selections the same property.
+            pruner.attach_cache(artifact_cache)
         if getattr(pruner, "needs_answers", False):
             # loo_oracle scores logP(gold answer | context), which `select` has
             # no room for in its signature. It is a ceiling, not a method: see

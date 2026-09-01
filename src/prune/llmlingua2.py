@@ -69,6 +69,7 @@ import hashlib
 
 from typing import Any, Sequence
 
+from ..cache import artifact_key
 from ..chunks import Chunk
 from .base import Pruner, validate_rewrite, validate_selection
 
@@ -210,16 +211,33 @@ class LLMLingua2(Pruner):
         kept = [c.idx for c in sorted(chunks, key=lambda c: c.rank)]
         return validate_selection(kept, chunks, len(chunks))
 
+    #: Runs its own compressor rather than the study generator, so this work is
+    #: in no cache and is re-paid on every restart (~24 min on the 2Wiki config).
+    wants_cache = True
+
     def _compress(self, text: str, rate: float) -> str:
         # The chunk index is deliberately NOT part of this key: it does not
         # affect the output, and using it made two different chunks that happen
         # to share a slot collide.
-        key = (hashlib.sha256(text.encode("utf-8")).hexdigest(), round(rate, 4))
+        text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        key = (text_hash, round(rate, 4))
         if key in self._cache:
             return self._cache[key]
         if not text.strip():
             self._cache[key] = text
             return text
+
+        # Disk cache. Same key material as the in-process one plus the model and
+        # the forced tokens, both of which change the output.
+        disk = getattr(self, "_disk_cache", None)
+        dkey = None
+        if disk is not None:
+            dkey = artifact_key("llmlingua2", {"model": self.model, "rate": round(rate, 4),
+                                               "force_tokens": FORCE_TOKENS, "text": text_hash})
+            hit = disk.get(dkey)
+            if hit is not None:
+                self._cache[key] = str(hit)
+                return self._cache[key]
 
         compressor = _load(self.model, self.device)
         out = compressor.compress_prompt(
@@ -231,6 +249,8 @@ class LLMLingua2(Pruner):
             use_context_level_filter=False,
         )
         self._cache[key] = str(out["compressed_prompt"])
+        if disk is not None and dkey is not None:
+            disk.put(dkey, "llmlingua2", self._cache[key])
         return self._cache[key]
 
     def rewrite(

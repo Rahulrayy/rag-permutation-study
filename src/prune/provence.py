@@ -47,6 +47,7 @@ from __future__ import annotations
 from typing import Any, Sequence
 
 from ..chunks import Chunk
+from ..cache import artifact_key
 from .base import Pruner, validate_rewrite, validate_selection
 
 DEFAULT_CHECKPOINT = "naver/provence-reranker-debertav3-v1"
@@ -95,6 +96,11 @@ def unload_all() -> None:
 class _ProvenceBase(Pruner):
     """Shared machinery. Neither this nor its `name` is registered."""
 
+    #: 435M DeBERTa running its own forward pass, so none of this work lands in
+    #: the generation cache. On the 2Wiki config it runs on CPU to leave the GPU
+    #: to generation, where re-paying it costs ~67 minutes per restart.
+    wants_cache = True
+
     def __init__(
         self,
         checkpoint: str = DEFAULT_CHECKPOINT,
@@ -115,6 +121,34 @@ class _ProvenceBase(Pruner):
         key = (query, tuple(c.idx for c in chunks))
         if key in self._cache:
             return self._cache[key]
+
+        # Disk cache, checked after the in-process one and before the model.
+        # The key carries the checkpoint, every setting that changes the output,
+        # and the chunk TEXT rather than its index: this pass is expensive
+        # enough that a wrong hit would be worse than no cache at all.
+        #
+        # batch_size is in the key because padding to the longest member of a
+        # batch perturbs the scores slightly, so results are not bit-identical
+        # across batch sizes and must not be shared between them.
+        disk = getattr(self, "_disk_cache", None)
+        dkey = None
+        if disk is not None:
+            dkey = artifact_key(
+                "provence",
+                {
+                    "checkpoint": self.checkpoint,
+                    "threshold": self.threshold,
+                    "batch_size": self.batch_size,
+                    "query": query,
+                    "chunks": [[c.idx, c.title, c.text] for c in chunks],
+                },
+            )
+            hit = disk.get(dkey)
+            if hit is not None:
+                scores = [float(x) for x in hit["scores"]]
+                pruned = {int(k): str(v) for k, v in hit["pruned"].items()}
+                self._cache[key] = (scores, pruned)
+                return scores, pruned
 
         model = _load(self.checkpoint, self.device)
         out = model.process(
@@ -138,6 +172,9 @@ class _ProvenceBase(Pruner):
         scores = [float(x) for x in out["reranking_score"][0]]
         pruned = {c.idx: str(t) for c, t in zip(chunks, out["pruned_context"][0])}
         self._cache[key] = (scores, pruned)
+        if disk is not None and dkey is not None:
+            disk.put(dkey, "provence", {"scores": scores,
+                                        "pruned": {str(k): v for k, v in pruned.items()}})
         return scores, pruned
 
     def select(self, query: str, chunks: Sequence[Chunk], budget: int) -> list[int]:

@@ -763,3 +763,60 @@ def test_llmlingua2_still_memoizes_identical_text(stub_lingua, chunks):
     pruner.rewrite("q", chunks, 3)
     pruner.rewrite("a different query", chunks, 3)   # same text, same rate
     assert len(stub_lingua.calls) == 10
+
+
+def test_llmlingua2_disk_cache_survives_a_new_instance(stub_lingua, chunks, tmp_path):
+    """The point of the disk cache: a restart must not re-pay the encoder.
+
+    An in-process dict dies with the run, so an interrupted job recompressed
+    everything on resume. On the 2Wiki config, where this arm and Provence run
+    on CPU to leave the GPU to generation, that was ~90 minutes per restart.
+    """
+    from src.cache import ArtifactCache
+
+    cache = ArtifactCache(tmp_path / "artifacts.sqlite")
+
+    first = get_pruner("llmlingua2")
+    first.attach_cache(cache)
+    out_first = first.rewrite("q", chunks, 3)
+    assert len(stub_lingua.calls) == 10
+
+    # A brand new instance, as a restarted run would build.
+    second = get_pruner("llmlingua2")
+    second.attach_cache(cache)
+    out_second = second.rewrite("q", chunks, 3)
+
+    assert len(stub_lingua.calls) == 10, "the second instance recompressed"
+    assert [c.text for c in out_second] == [c.text for c in out_first]
+
+
+def test_disk_cache_is_keyed_on_content_not_position(stub_lingua, tmp_path):
+    """A disk cache repeating the aliasing bug would be worse than none at all."""
+    from src.cache import ArtifactCache
+    from src.chunks import Chunk
+
+    cache = ArtifactCache(tmp_path / "artifacts.sqlite")
+    a = [Chunk(idx=0, title="a", text="alpha passage " * 12, rank=0)]
+    b = [Chunk(idx=0, title="b", text="bravo passage " * 12, rank=0)]
+
+    pruner = get_pruner("llmlingua2")
+    pruner.attach_cache(cache)
+    out_a = pruner.rewrite("q1", a, 3)
+    fresh = get_pruner("llmlingua2")          # force it through the disk path
+    fresh.attach_cache(cache)
+    out_b = fresh.rewrite("q2", b, 3)
+
+    assert "bravo" in out_b[0].text
+    assert out_a[0].text != out_b[0].text
+
+
+def test_arms_that_use_the_run_generator_do_not_want_a_disk_cache():
+    """llm_pruner and loo_oracle already go through CachedGenerator.
+
+    Giving them a second cache would duplicate state and invite the two to
+    disagree, which is a worse failure than recomputing.
+    """
+    assert get_pruner("llm_pruner").wants_cache is False
+    assert get_pruner("loo_oracle").wants_cache is False
+    assert get_pruner("provence_rerank").wants_cache is True
+    assert get_pruner("llmlingua2").wants_cache is True
