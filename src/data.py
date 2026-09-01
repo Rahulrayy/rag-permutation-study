@@ -112,6 +112,28 @@ def subsample(
 # Loaders
 # --------------------------------------------------------------------------- #
 
+def _chunks_from_context(context: dict, gold_titles: set) -> list[Chunk]:
+    """Build the chunk list from a `{title[], sentences[][]}` context column.
+
+    Shared by both multi-hop loaders, which ship the identical column layout.
+    Kept as one function on purpose: the text here is what gets hashed into the
+    generation cache key, so two copies that drifted by a stripped space would
+    silently split the cache and make two datasets incomparable for no visible
+    reason.
+    """
+    return [
+        Chunk(
+            idx=i,
+            title=title,
+            # Sentences ship with leading spaces; join then collapse.
+            text=" ".join(s.strip() for s in sents).strip(),
+            rank=i,
+            is_gold=title in gold_titles,
+        )
+        for i, (title, sents) in enumerate(zip(context["title"], context["sentences"]))
+    ]
+
+
 def _load_hotpotqa_distractor(split: str, cache_dir: str | None) -> list[Example]:
     from datasets import load_dataset as hf_load
 
@@ -124,21 +146,7 @@ def _load_hotpotqa_distractor(split: str, cache_dir: str | None) -> list[Example
 
     examples: list[Example] = []
     for row in ds:
-        titles = row["context"]["title"]
-        sentences = row["context"]["sentences"]
-        gold_titles = set(row["supporting_facts"]["title"])
-
-        chunks = [
-            Chunk(
-                idx=i,
-                title=title,
-                # Sentences ship with leading spaces; join then collapse.
-                text=" ".join(s.strip() for s in sents).strip(),
-                rank=i,
-                is_gold=title in gold_titles,
-            )
-            for i, (title, sents) in enumerate(zip(titles, sentences))
-        ]
+        chunks = _chunks_from_context(row["context"], set(row["supporting_facts"]["title"]))
         examples.append(
             Example(
                 qid=row["id"],
@@ -148,6 +156,56 @@ def _load_hotpotqa_distractor(split: str, cache_dir: str | None) -> list[Example
                 gold_chunk_ids=[c.idx for c in chunks if c.is_gold],
                 hop_type=row["type"],          # comparison | bridge
                 meta={"level": row["level"]},  # easy | medium | hard
+            )
+        )
+    return examples
+
+
+#: The 2WikiMultihopQA mirror this study loads. The dataset's own authors publish
+#: at `xanhho/2WikiMultihopQA`, but that repo is script-based and `datasets` 5.x
+#: no longer runs dataset scripts, so it cannot be loaded here at all. This mirror
+#: ships the same columns as parquet. It is a third party, and the write-up says
+#: so rather than implying the result rests on the authors' own release.
+_2WIKI_REPO = "framolfese/2WikiMultihopQA"
+
+
+def _load_2wikimultihop(split: str, cache_dir: str | None) -> list[Example]:
+    """2WikiMultihopQA, the secondary dataset (plan Sec. 4.1).
+
+    Same column layout as HotpotQA distractor, and the same ten paragraphs per
+    row, which is what makes it a drop-in second dataset rather than a second
+    protocol. Two differences matter and neither is cosmetic:
+
+    **Four hop types, not two.** `comparison`, `compositional`, `inference` and
+    `bridge_comparison`, against HotpotQA's bridge/comparison. Stratified
+    sampling is dict-based and interleaves whatever strata it is given, so this
+    needs no special handling and the nested-prefix property still holds.
+
+    **`bridge_comparison` rows carry FOUR gold paragraphs, not two**, and they
+    are a substantial share of the split. That is the reason
+    `_require_two_gold` exists; see its docstring, and note the exclusion was
+    registered in advance rather than chosen once the number was known.
+    """
+    from datasets import load_dataset as hf_load
+
+    ds = hf_load(_2WIKI_REPO, split=split, cache_dir=cache_dir or DEFAULT_HF_CACHE)
+
+    examples: list[Example] = []
+    for row in ds:
+        chunks = _chunks_from_context(row["context"], set(row["supporting_facts"]["title"]))
+        examples.append(
+            Example(
+                qid=row["id"],
+                question=row["question"],
+                answer=row["answer"],
+                chunks=chunks,
+                gold_chunk_ids=[c.idx for c in chunks if c.is_gold],
+                # comparison | compositional | inference | bridge_comparison
+                hop_type=row["type"],
+                # 2Wiki has no `level`; it ships relation triples instead, which
+                # are the dataset's own evidence annotation and are worth keeping
+                # even though nothing in this study reads them yet.
+                meta={"evidences": row["evidences"]},
             )
         )
     return examples
@@ -169,11 +227,7 @@ def load_dataset(
     if name == "hotpotqa_distractor":
         examples = _load_hotpotqa_distractor(split, cache_dir)
     elif name == "2wikimultihop":
-        raise NotImplementedError(
-            "2WikiMultihopQA loader not implemented (week 5); same shape as "
-            "HotpotQA, so this should reuse _load_hotpotqa_distractor's Chunk "
-            "construction rather than duplicate it"
-        )
+        examples = _load_2wikimultihop(split, cache_dir)
     elif name == "nq_open_top10":
         raise NotImplementedError(
             "NQ-open loader not implemented; needs a Pyserini prebuilt index "
@@ -183,6 +237,7 @@ def load_dataset(
         raise ValueError(f"unknown dataset: {name!r}")
 
     examples = _require_fixed_context(examples, expected=10)
+    examples = _require_two_gold(examples)
     return subsample(examples, n_queries, seed, stratify_by)
 
 
@@ -212,6 +267,43 @@ def _require_fixed_context(
         )
     if not kept:
         raise ValueError(f"no rows with exactly {expected} paragraphs")
+    return kept
+
+
+def _require_two_gold(
+    examples: Sequence[Example],
+    expected: int = 2,
+) -> list[Example]:
+    """Drop rows that do not carry exactly ``expected`` gold paragraphs.
+
+    **Registered in advance, before the number was known.** ANALYSIS_PLAN Sec. 3
+    lists "not exactly 2 gold paragraphs" among the candidate exclusions,
+    measures it at 0 rows on HotpotQA, and fixes the rule for later datasets:
+    *drop the row, report the count, and never drop a row on the basis of the
+    answer it produced.* This is that rule, applied uniformly rather than per
+    dataset, which is why it is a no-op on HotpotQA and does not disturb the
+    completed main run.
+
+    It bites on 2WikiMultihopQA, where `bridge_comparison` rows carry four gold
+    paragraphs. Keeping them would break the comparison the study is built on: at
+    k=2 a four-gold question cannot retain all its evidence even in principle, so
+    gold recall, the Placebo Gap at matched keep-count and the Oracle Gap would
+    all mean something different on those rows than on every other row and on
+    every HotpotQA row.
+
+    The cost is real and belongs in the write-up rather than in a footnote: the
+    2Wiki replication then covers three of the dataset's four question types, and
+    the one it drops is the hardest.
+    """
+    kept = [ex for ex in examples if len(ex.gold_chunk_ids) == expected]
+    dropped = len(examples) - len(kept)
+    if dropped:
+        print(
+            f"excluded {dropped}/{len(examples)} rows "
+            f"({dropped / len(examples):.2%}) without exactly {expected} gold paragraphs"
+        )
+    if not kept:
+        raise ValueError(f"no rows with exactly {expected} gold paragraphs")
     return kept
 
 

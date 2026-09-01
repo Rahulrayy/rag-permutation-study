@@ -107,3 +107,82 @@ def test_memorization_filter_threshold_is_configurable():
     ]
     assert strict == ["q0", "q1"]  # only a perfect answer counts as recalled
     assert loose == ["q1"]         # partial recall counts too
+
+
+def _fake_with_gold(n_gold, hop_type="bridge_comparison"):
+    return Example(
+        qid=f"q-{n_gold}",
+        question="q",
+        answer="a",
+        chunks=[Chunk(idx=j, title=f"t{j}", text="x", rank=j) for j in range(10)],
+        gold_chunk_ids=list(range(n_gold)),
+        hop_type=hop_type,
+    )
+
+
+def test_require_two_gold_drops_rows_with_four(capsys):
+    """The registered exclusion (ANALYSIS_PLAN Sec. 3), which 2Wiki triggers.
+
+    `bridge_comparison` rows carry four gold paragraphs. Keeping them would make
+    a matched-keep-count comparison mean something different on those rows: at
+    k=2 they cannot retain all their evidence even in principle.
+    """
+    from src.data import _require_two_gold
+
+    population = [_fake_with_gold(2, "comparison"), _fake_with_gold(4), _fake_with_gold(2)]
+    kept = _require_two_gold(population)
+
+    assert [e.qid for e in kept] == ["q-2", "q-2"]
+    # The count is reported, never silently absorbed.
+    assert "without exactly 2 gold paragraphs" in capsys.readouterr().out
+
+
+def test_require_two_gold_is_a_no_op_when_every_row_has_two():
+    """It must not disturb HotpotQA, whose 7,345 rows all carry exactly two.
+
+    The filter is applied to every dataset rather than only to 2Wiki, so this is
+    the property that keeps the completed main run's population intact.
+    """
+    from src.data import _require_two_gold
+
+    population = [_fake_with_gold(2) for _ in range(5)]
+    assert _require_two_gold(population) == population
+
+
+def test_require_two_gold_refuses_to_empty_the_population():
+    from src.data import _require_two_gold
+
+    with pytest.raises(ValueError, match="no rows with exactly 2 gold"):
+        _require_two_gold([_fake_with_gold(4), _fake_with_gold(3)])
+
+
+def test_chunks_from_context_is_shared_by_both_loaders():
+    """One text builder, because the text is what the cache key hashes.
+
+    Two copies that drifted by a stripped space would split the cache and make
+    the two datasets quietly incomparable.
+    """
+    from src.data import _chunks_from_context
+
+    context = {"title": ["A", "B"], "sentences": [[" one.", " two."], [" three."]]}
+    chunks = _chunks_from_context(context, gold_titles={"B"})
+
+    assert [c.text for c in chunks] == ["one. two.", "three."]
+    assert [c.idx for c in chunks] == [0, 1]
+    assert [c.rank for c in chunks] == [0, 1]
+    assert [c.is_gold for c in chunks] == [False, True]
+
+
+@pytest.mark.network
+@pytest.mark.slow
+def test_2wikimultihop_loads_with_the_same_shape_as_hotpotqa():
+    """The second dataset has to be a drop-in, or it is a second protocol."""
+    from src.data import load_dataset
+
+    examples = load_dataset("2wikimultihop", n_queries=20, stratify_by="hop_type")
+    assert len(examples) == 20
+    assert all(len(e.chunks) == 10 for e in examples)
+    # The registered exclusion has already run, so nothing four-gold survives.
+    assert all(len(e.gold_chunk_ids) == 2 for e in examples)
+    assert all(e.hop_type in ("comparison", "compositional", "inference") for e in examples)
+    assert all(e.question and e.answer for e in examples)

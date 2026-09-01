@@ -443,7 +443,13 @@ def audit_determinism(
         f"({rate:.1%})"
     )
     for d in divergences[:5]:
-        print(f"    cached {d['cached']!r} -> fresh {d['fresh']!r}")
+        # ascii(), not !r: this is the only place a *generation* reaches stdout,
+        # and Windows consoles default to cp1252. A 2WikiMultihopQA answer such
+        # as "Malgorzata Braunek" (with the Polish l-stroke) would otherwise
+        # raise UnicodeEncodeError and take the audit down at the point where it
+        # is reporting a divergence, which is exactly when the output matters.
+        # The JSON written beside it is utf-8 and keeps the real characters.
+        print(f"    cached {ascii(d['cached'])} -> fresh {ascii(d['fresh'])}")
     return {
         "checked": checked,
         "identical": identical,

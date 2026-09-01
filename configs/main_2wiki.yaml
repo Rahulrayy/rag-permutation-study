@@ -1,0 +1,145 @@
+# Secondary dataset: 2WikiMultihopQA, the generality check (plan Sec. 4.1,
+# ANALYSIS_PLAN Sec. 7 "robustness checks, planned not exploratory").
+#
+# Identical to configs/main.yaml in every registered parameter -- same arms,
+# budgets, permutations, seed, generator, decode params, statistics. Only the
+# dataset and the results directory differ, which is the point: a second dataset
+# is only a replication if nothing else moved with it.
+#
+# TWO DIFFERENCES IN THE DATA ITSELF, both handled in src/data.py:
+#
+#   Four hop types instead of two (comparison / compositional / inference /
+#   bridge_comparison). Stratification is dict-based and needs no change.
+#
+#   `bridge_comparison` rows carry FOUR gold paragraphs. They are excluded by
+#   `_require_two_gold`, under the rule ANALYSIS_PLAN Sec. 3 fixed in advance
+#   for later datasets. That exclusion is a no-op on HotpotQA (verified: all
+#   7,345 rows carry exactly two), so it does not disturb the completed run.
+#   The replication therefore covers three of the dataset's four question types
+#   and the write-up says so.
+#
+# Nothing in the generation cache is reusable here: it keys on the prompt, and
+# every prompt is new. Budget the run as a full one, ~8 h.
+name: main_2wiki
+
+data:
+  dataset: 2wikimultihop
+  split: validation
+  n_queries: 300
+  seed: 20260828
+  stratify_by: hop_type
+  memorization_filter: true    # restrict primary analysis to nocontext-incorrect
+
+generator:
+  backend: local
+  model: Qwen/Qwen2.5-3B-Instruct
+  quantization: 4bit
+  max_new_tokens: 32
+  temperature: 0.0
+  do_sample: false
+  seed: 20260828
+  # 6.4 GB VRAM, and the laptop display runs off the same GPU. The monitor
+  # blanking during runs was Windows TDR resetting the display driver, not an
+  # OOM; TdrDelay is now raised to 10s machine-wide, which fixed it at the root.
+  #
+  # Benchmarked on 8 real prompts (median 1,520 tokens):
+  #
+  #     batch 1   1.08 s/gen   peak 2.66 GB
+  #     batch 2   0.82 s/gen   peak 2.50 GB   <- chosen
+  #     batch 4   0.78 s/gen   peak 2.91 GB
+  #     batch 8   0.72 s/gen   peak 3.75 GB
+  #
+  # WAS 4, changed to 2 on 2026-08-30 after batch 4 raised
+  # torch.OutOfMemoryError partway into the real grid. The cap did its job --
+  # a clean OOM rather than a display crash -- but the run died.
+  #
+  # The benchmark above under-sampled context length: 8 prompts at a median of
+  # 1,520 tokens does not reach the longest cells in the grid, and on those a
+  # single attention allocation asked for 970 MB and pushed past the ceiling.
+  # Batch 2 is also the LOWEST-memory row in that table (2.50 GB against 2.91),
+  # so this costs ~5% throughput and buys the run finishing.
+  #
+  # Verified: 20+ minutes of sustained generation at batch 2 with VRAM flat and
+  # no OOM.
+  batch_size: 2
+  # Small pause is cheap insurance for the compositor now that TDR is the real
+  # fix rather than the workaround: ~3% of runtime.
+  batch_pause_s: 0.1
+  # Hard ceiling, so overrunning is a clean CUDA OOM rather than a display
+  # crash. 0.75 = 4.8 GB, well above the 2.50 GB peak at batch 2, and the value
+  # the 20-minute verification above actually ran at.
+  #
+  # Note this is a fraction of TOTAL VRAM, not free. Browsers hold real GPU
+  # memory -- Chrome, Edge, PyCharm and Spotify together took ~3.5 GB during the
+  # failed batch-4 run -- so close them before a long job on a 6 GB card.
+  max_vram_fraction: 0.75
+
+arms:
+  - full
+  - nocontext
+  - rerank_topk
+  # Provence is two methods in one: an excellent reranker and a brutal
+  # sentence pruner. Run separately so their difference isolates the
+  # pruning contribution with selection held fixed. See src/prune/provence.py.
+  - provence_rerank
+  - provence_full
+  - llmlingua2
+  - llm_pruner
+  - random_drop
+  - placebo_pos
+  - loo_oracle
+
+budgets: [2, 3, 5]
+
+arm_params:
+  rerank_topk:
+    model: cross-encoder/ms-marco-MiniLM-L-6-v2
+  provence_rerank:
+    threshold: 0.1
+  provence_full:
+    threshold: 0.1
+  # placebo_pos takes no arm_params: the runner expands the bare name into
+  # placebo_pos:middle_first / :edges_first / :tail_first, one arm each, and
+  # each appears under its own name in generations.csv. To run a single variant,
+  # write it out in `arms` above instead of the bare name.
+  random_drop:
+    seed: 20260828
+  llm_pruner:
+    max_new_tokens: 64
+  llmlingua2:
+    # bert-base rather than xlm-roberta-large: 0.71 GB against 2.2 on a 6 GB
+    # card. A deviation from the paper's headline model; state it in the write-up.
+    model: microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank
+
+permutation:
+  n_permutations: 5
+  strategies: [rank, reverse, random, random, random]
+  seed: 20260828
+
+metrics:
+  baseline_arm: rerank_topk     # denominator arm for OAE
+  # SETTLED at registration (ANALYSIS_PLAN Sec. 1, H4): all three placebo
+  # variants run, and `middle_first` is the confirmatory comparator because it
+  # is the shape a lost-in-the-middle-aware pruner produces by accident, which
+  # is the specific confound RQ4 is aimed at. `edges_first` and `tail_first`
+  # are exploratory. Changing this now is a protocol deviation, not an edit.
+  placebo_arm: placebo_pos:middle_first
+  oracle_arm: loo_oracle
+  # The confirmatory budget, registered in ANALYSIS_PLAN Sec. 2 and 5: the
+  # primary endpoint and the nine-comparison Holm family are both defined at
+  # k=3. Stated here rather than inferred, so src.analyze cannot pick a
+  # different budget if `budgets` is ever reordered.
+  primary_budget: 3
+
+stats:
+  bootstrap_replicates: 10000
+  ci: 0.95
+  correction: holm
+  seed: 20260828
+
+cache:
+  backend: sqlite
+  path: cache/generations.sqlite
+
+output:
+  results_dir: results/main_2wiki
