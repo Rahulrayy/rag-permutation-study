@@ -145,6 +145,7 @@ numbers are meaningless by construction), `--n 20` shrinks the question set,
 | pipeline, all 11 arms, caching, statistics | done |
 | main run, 45,510 generations | done |
 | confirmatory analysis and figures | done |
+| robustness: same analysis on the unfiltered 300 | done |
 | hosted cross-generator replication at 27B | 1,610 of ~1,655 calls, rate-limited |
 
 **231 tests** pass (`python -m pytest -q -m "not network"`, about 10s). Three

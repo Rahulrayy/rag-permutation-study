@@ -7,7 +7,7 @@ hosted cross-generator replication is not finished, and Section 7 says what
 remains.
 
 All numbers here are from the corrected run. An earlier version reported the
-`llmlingua2` arm wrongly because of a caching defect; Section 4.7 documents it,
+`llmlingua2` arm wrongly because of a caching defect; Section 4.8 documents it,
 its effect, and why it survived a full analysis and a draft.
 
 ---
@@ -285,7 +285,7 @@ registration commit.
 
 **The registered analysis was executed twice**, and a reader is entitled to know
 which numbers these are. The first execution ran on data in which one arm was
-affected by a caching defect (Section 4.7). The defect was found afterwards, the
+affected by a caching defect (Section 4.8). The defect was found afterwards, the
 arm was regenerated, and the identical pre-specified procedure was re-run on the
 corrected data; the numbers reported here are from that second execution. No part
 of the specification changed in response to seeing results: the endpoint, the
@@ -406,7 +406,7 @@ out positive for everything would suggest the comparison itself was biased.
 placebo at all three budgets (+0.1192, +0.1356, +0.0958), which is worth stating
 explicitly because an earlier version of this analysis reported the opposite. A
 caching defect was feeding that arm one question's compressed passages for every
-question in the run; it is described in Section 4.7, and the numbers here are
+question in the run; it is described in Section 4.8, and the numbers here are
 from the corrected run.
 
 The direct answer to the motivating suspicion is therefore negative. Published
@@ -601,7 +601,61 @@ of cells have ties at the selection boundary, and its selection order-Jaccard is
 tie-breaking rather than by position, and those are different claims that should
 not be merged.
 
-### 4.7 A corrected defect, and what it cost
+### 4.7 Robustness: the same analysis on the unfiltered population
+
+The memorization filter removes the 26 questions of 300 that the generator can
+answer with no context at all. Those are plausibly also the questions least
+sensitive to ordering, and the concern this raises is not that the overall level
+shifts, which it must, but that the filter might flatter some arms more than
+others and so bias the arm-versus-arm comparisons the study is built on. The
+project plan asked for both populations to be reported; this is that check. The
+filtered population remains the registered primary one and nothing here enters
+the confirmatory family.
+
+The whole grid was regenerated with the filter off, 49,800 rows over 300
+questions, and the identical analysis run against it.
+
+**The primary endpoint holds at every budget:**
+
+| | filtered, 274 | unfiltered, 300 |
+|---|---|---|
+| k = 2 | +0.2895 [0.2363, 0.3420] | **+0.2793 [0.2279, 0.3308]** |
+| k = 3 | +0.2760 [0.2223, 0.3297] | **+0.2562 [0.2049, 0.3075]** |
+| k = 5 | +0.1780 [0.1314, 0.2259] | **+0.1623 [0.1163, 0.2078]** |
+
+Holm-adjusted p = 0.0018 in all six cells. All fifteen Placebo Gap comparisons
+survive correction on both populations, `random_drop` fails to exclude zero in
+all six cells, and no arm ordering changes on any research question. RQ1's
+distribution is likewise stable: 51.7% of questions have zero within-question SD
+against 50.0% filtered, 38.3% return an identical answer against 35.8%, and the
+median among movers is 0.4117 against 0.3912.
+
+**Two things did change, and neither is rounded away here.**
+
+`OAE:llmlingua2` at k = 5 moves from Holm 0.0056 to 0.0744 and so drops out of
+significance, taking that budget from six of nine survivors to five. Its point
+estimate moves from -0.4586 to -0.3288, meaning the arm looks slightly less bad
+against the baseline on the fuller population. It was the smallest-magnitude
+comparison in that family and therefore the most likely to cross. It is the only
+significance change in eighteen comparisons.
+
+The rank flip rate at k = 5 rises from 0.0667 to **0.1067**, crossing the
+registered H3 threshold of 0.10. H3 was specified at the primary budget, where
+the rate is 0.0400 on both populations, so the registered conclusion that H3 is
+not supported is unaffected. But it is worth stating that on the fuller
+population at the largest budget the threshold is nominally met, which is
+consistent with the reading that single-order evaluation degrades as more
+context is kept.
+
+**What this does and does not establish.** The two populations share 274 of 300
+questions, an overlap of 91%, so this is a test for bias introduced by the
+exclusion and not an independent replication. A filter that favoured particular
+arms would show up as differential movement between them, and it does not: every
+arm moves in the same direction by a similar small amount. Whether the findings
+generalise to unseen questions or another dataset is a different question, and
+one this study does not answer.
+
+### 4.8 A corrected defect, and what it cost
 
 One arm's results in an earlier version of this analysis were wrong, and the
 correction is reported here rather than left in the commit history, because the
@@ -733,6 +787,14 @@ retrieval ranking.
 have no keep-count by construction and are compared on input-token count instead.
 LLMLingua-2 additionally presents n permutable units where a keep-k arm presents
 k, so its raw permutation variance is not comparable in magnitude to the others.
+
+**The analysis population excludes questions answerable without context.** That
+is the registered primary population, and Section 4.7 reports the same analysis
+on the unfiltered 300 as a robustness check: the primary endpoint holds at every
+budget, the control still straddles zero, and no arm ordering changes. Two
+comparisons of eighteen do move, and are named there. Because the populations
+overlap by 91%, that check rules out bias from the exclusion rather than
+demonstrating generality.
 
 **The median is not a usable summary of RQ1 on this distribution**, as Section
 4.1 shows. This limits comparison with any prior work that reports a median

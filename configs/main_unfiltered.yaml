@@ -97,10 +97,21 @@ budgets: [2, 3, 5]
 arm_params:
   rerank_topk:
     model: cross-encoder/ms-marco-MiniLM-L-6-v2
+  # CPU, for the reason the 2Wiki config records: Provence (1.62 GB),
+  # LLMLingua-2 (0.66 GB) and the cross-encoder stay resident alongside Qwen
+  # (1.93 GB), and 4.3 GB of weights leaves nothing for generation on a 6 GB
+  # card. The first attempt at this run OOM'd in Qwen's attention after every
+  # selection arm had finished.
+  #
+  # This costs almost nothing here: the selections from that attempt are already
+  # in the artifact cache, so they replay from disk and the CPU model is never
+  # loaded. That is precisely what the disk cache was added for.
   provence_rerank:
     threshold: 0.1
+    device: cpu
   provence_full:
     threshold: 0.1
+    device: cpu
   # placebo_pos takes no arm_params: the runner expands the bare name into
   # placebo_pos:middle_first / :edges_first / :tail_first, one arm each, and
   # each appears under its own name in generations.csv. To run a single variant,
@@ -113,6 +124,7 @@ arm_params:
     # bert-base rather than xlm-roberta-large: 0.71 GB against 2.2 on a 6 GB
     # card. A deviation from the paper's headline model; state it in the write-up.
     model: microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank
+    device: cpu
 
 permutation:
   n_permutations: 5
