@@ -1159,7 +1159,8 @@ primary endpoint on the registered population moves it by at most 0.002, in the
 third decimal, with p = 0.0002 and every interval, ordering and conclusion
 unchanged. The published numbers are kept on the applied population rather than
 re-baselined to move a third decimal, and the registered rule is reported as the
-sensitivity check. The plan's protocol-deviation section has the full table. The
+sensitivity check. [`ANALYSIS_PLAN.md`](ANALYSIS_PLAN.md) Section 9 has the full
+table. The
 defect worth naming is not the value but its reachability: a registered
 parameter should not have been settable only through a function default, and it
 now has to be stated in the config.
@@ -1243,7 +1244,9 @@ generation table, the figures are drawn from that analysis rather than
 recomputing anything, and the selection-stability probe writes its own artifact.
 The analysis plan was registered in version control before any main-run data
 existed, and every departure from it, together with every exploratory addition,
-is recorded and dated in the plan's protocol-deviation section.
+is recorded and dated in [`ANALYSIS_PLAN.md`](ANALYSIS_PLAN.md) Section 9. That
+log is published in full rather than summarised, and it includes the errors this
+project found in its own analysis after the fact.
 
 The replication in Section 4.9 is reproducible on the same terms. Its grid
 resumes rather than restarts, because every call is cached on a hash of model,

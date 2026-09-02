@@ -145,7 +145,10 @@ recomputed per generator rather than shared.
   significance.
 - **Pre-registered.** Hypotheses, primary endpoint, analysis population and
   multiplicity family were all fixed and committed before any main-run data
-  existed, and are retrievable at commit `2f24548`.
+  existed. The plan is [`ANALYSIS_PLAN.md`](ANALYSIS_PLAN.md), and its Section 9
+  logs **every** departure from it, including a dozen errors caught after the
+  fact with the measured impact of each. The registered text is retrievable at
+  commit `2f24548`, dated two days before the first main-run result.
 
 The scale: **45,510 generations**, 11 arms, 274 questions, 3 budgets, 5
 permutations, plus **1,655 hosted calls** for the 27B replication.
@@ -210,3 +213,9 @@ retriever ranking, since the distractor setting has no retriever. The
 Provence checkpoint is non-commercial (`cc-by-nc-nd-4.0`).
 
 The full list is in [`WRITEUP.md`](WRITEUP.md), Section 6.
+
+## Licence
+
+MIT, see [`LICENSE`](LICENSE). Note this covers the code and documents here, not
+the model checkpoints they load: the Provence checkpoint is released under
+`cc-by-nc-nd-4.0` and its terms are its own.
