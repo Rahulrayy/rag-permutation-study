@@ -190,6 +190,7 @@ def figure(
     series_labels: tuple[str, str],
     xlabel: str,
     footnote: str,
+    star_note: str = "",
 ) -> None:
     """Both marginals drawn, significance taken from the paired difference.
 
@@ -198,7 +199,10 @@ def figure(
     """
     label_a, label_b = out["labels"]
     arms = list(out["arms"])
-    fig, ax = plt.subplots(figsize=(7.4, 0.62 * len(arms) + 2.0))
+    # One row per arm, plus headroom for the title and the legend. The legend
+    # sits inside the axes, so a single-arm figure needs the same vertical room
+    # as a four-arm one or it lands on top of the only data point.
+    fig, ax = plt.subplots(figsize=(7.4, max(0.62 * len(arms) + 2.2, 3.4)))
     ys = np.arange(len(arms))[::-1]
 
     for label, colour, offset, series in (
@@ -221,13 +225,25 @@ def figure(
         ],
         fontsize=9,
     )
+    # Pin the row band explicitly. Left to autoscale, a one-arm figure stretches
+    # the +/-0.15 series offsets across the whole axis and the pair reads as two
+    # unrelated rows rather than as one arm measured twice.
+    ax.set_ylim(-0.7, len(arms) - 0.3)
     ax.set_xlim(left=0)
     ax.set_xlabel(xlabel)
     ax.set_title(f"{title}\n{subtitle}", fontsize=10.5, loc="left")
     _style(ax)
     ax.legend(frameon=False, fontsize=8.5, loc="lower right")
+    # The star legend is only meaningful when something is starred; on a figure
+    # where nothing separates from zero it invites the reader to hunt for a mark
+    # that is not there.
+    starred = any(
+        out["arms"][a]["paired_difference"]["excludes_zero"] for a in arms
+    )
+    text = f"{star_note}  {footnote}".strip() if (starred and star_note) else footnote
     fig.text(
-        0.005, -0.02, footnote, fontsize=7.5, color="#555555", ha="left", va="top"
+        0.005, -0.06, text, fontsize=7.5, color="#555555", ha="left", va="top",
+        wrap=True,
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")

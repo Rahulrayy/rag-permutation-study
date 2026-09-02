@@ -54,10 +54,10 @@ def main(budget: str = "3", n_replicates: int = 10_000, seed: int = 20260828) ->
         ),
         series_labels=("Qwen2.5-3B, local", "Qwen3.8-27B, hosted"),
         xlabel="mean within-question SD of token-F1 across the three orderings",
+        star_note="*  the paired 3B-27B difference excludes zero.",
         footnote=(
-            "*  the paired 3B-27B difference excludes zero. Exploratory: these "
-            "four comparisons are not in the registered confirmatory family and "
-            "carry no multiplicity correction."
+            "Exploratory: these four comparisons are not in the registered "
+            "confirmatory family and carry no multiplicity correction."
         ),
     )
     write(out, OUT)

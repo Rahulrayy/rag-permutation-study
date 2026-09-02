@@ -894,6 +894,49 @@ filed that way.
 
 ---
 
+### 4.10 Robustness: the registered delimiter variant
+
+RQ1's effect is the effect of *presentation order*, and presentation order is
+carried by more than semantic position. `build_prompt` renders each passage as
+`[i] Title: text`, where `i` is its slot in the current ordering — what a
+deployed pipeline does, and what stops the permutation from being inferable from
+the labels. It does mean a reordering changes the numeric labels too, so a
+sceptic is entitled to ask how much of the effect is the model reacting to the
+formatting rather than to position.
+
+The analysis plan registered a check for this before the main run: one
+alternative delimiter style, differing from the default in the context fencing
+alone. `generate.py` enforces that at import with a real raise rather than an
+assert, so the two templates cannot drift, and a test confirms both render the
+`[i] Title: text` line identically. The check was implemented in week 2 and, as
+Section 7 recorded until now, never run. It has been: 1,370 generations, the
+un-pruned arm, the same 274 questions and the same five orderings, with all
+1,370 cells verified to present byte-identical passage orders.
+
+![Delimiter robustness](results/robustness_delimiter/figures/delimiter_sd.png)
+
+| mean within-question SD, `full`, k=3, n=274 | |
+|---|---|
+| default (`{context}` bare) | 0.1795 [0.1554, 0.2038] |
+| alt (`<context>` … `</context>`) | 0.1748 [0.1501, 0.1988] |
+| paired difference | **0.0047 [-0.0140, 0.0239]**, p = 0.6298 |
+
+**The effect is unchanged.** The two estimates differ by 0.0047, a ratio of
+1.03, and the paired difference does not come close to excluding zero. Fencing
+the context in explicit tags neither creates nor removes the permutation
+sensitivity. RQ1 is not an artifact of one prompt's delimiter style, and the
+0.1795 that Section 4.1 quotes survives the only formatting perturbation the
+plan registered.
+
+**What this does not settle.** It varies the fencing, not the `[i]` numbering.
+A template that dropped the indices would change how the model is told the
+passages are separate at all, which is a different prompt rather than a
+delimiter variant, so the numbering contribution remains bounded only by the
+argument that positional numbering is what a real pipeline does. Section 6 keeps
+that as a stated limitation rather than a closed question.
+
+---
+
 ## 5. Discussion
 
 **The two central results are in tension, and the tension is the point.** RQ1
@@ -1021,8 +1064,10 @@ passage as `[i] Title: text` where `i` is its slot in the current ordering, whic
 is what a deployed pipeline does and is what keeps the permutation from being
 inferable. It does mean a reordering changes the numeric labels as well as the
 positions, so the RQ1 effect is the effect of presentation order inclusive of its
-labelling and not of position in isolation. The registered delimiter-variant
-check would bound this and has not been run (Section 7).
+labelling and not of position in isolation. The registered delimiter variant
+(Section 4.10) shows the effect is not an artifact of the context *fencing* —
+the paired difference is 0.0047 [-0.0140, 0.0239] — but it does not separate the
+numbering from the position, and nothing here does.
 
 **"Rank" is the dataset's as-given order.** HotpotQA distractor has no retriever,
 so the reference ordering is the dataset's own paragraph order rather than a
@@ -1098,19 +1143,13 @@ no-derivatives licence, which restricts reuse of that arm outside research.
 - **The mechanism behind the RQ2 null is untested.** Section 5 proposes that a
   selector's advantage should track the dispersion of per-passage leave-one-out
   drops within a question. The data to test it is already collected.
-- **One registered robustness check was never run.** The analysis plan's
-  robustness list includes a prompt-template variant: an alternative delimiter
-  style, identical to the main template in instruction wording and answer cue and
-  differing only in how passages are fenced. It is implemented (`ALT_TEMPLATE`,
-  reachable as `prompt_template: alt`) and guarded by a test asserting it differs
-  from the default in the delimiters alone, but no config uses it and it has no
-  results. It should be run, and it is cheap — one arm, one budget, the existing
-  population, roughly 1,400 local generations. It matters more than its size
-  suggests, because passages are numbered by presentation position (`[1]`, `[2]`,
-  …), so a reordering changes those labels as well as the semantic order, and
-  this is the check that bounds how much of the RQ1 effect is the numbering
-  rather than the position. Reported here as an omission rather than left to be
-  discovered from the plan.
+- **Separating the numbering from the position.** Section 4.10 shows the effect
+  survives a change of context fencing, which was the registered check and is now
+  run. It does not separate the `[i]` labels from the positions they mark, and
+  that would need a template with no indices at all — a different prompt rather
+  than a delimiter variant, since it changes how the model is told the passages
+  are separate. Worth doing, and worth stating as a change of prompt rather than
+  filed under robustness.
 - **A second dataset is prepared but not run.** The loader and config for
   2WikiMultihopQA exist and are tested, so the protocol transfers without
   modification: the same ten paragraphs per question and the same column layout.

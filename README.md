@@ -44,6 +44,11 @@ questions return a byte-identical answer under all five orderings.
 
 ![Within-question variation under reordering](results/main_hotpotqa/figures/rq1_permutation_sd.png)
 
+Not a formatting artifact: re-running the whole thing with the context fenced in
+`<context>` tags instead of bare moves the effect by **0.0047** token-F1
+([-0.0140, 0.0239]), which is nothing. That was a check registered before the
+main run.
+
 **2. But pruning methods really are selecting on content, not position.** This
 was the study's main hypothesis and it did not survive contact with the data,
 which is the useful outcome. We built a placebo that drops the same number of
@@ -155,6 +160,7 @@ python -m pip install -r requirements.txt      # torch must come from the CUDA i
 | Selection-stability probe | `python -m src.selection_probe --config configs/main.yaml --n 100` |
 | Hosted 27B replication | `python -m src.run --config configs/replication.yaml` |
 | Matched 3B vs 27B comparison | `python -m src.generator_comparison` |
+| Delimiter robustness check | `python -m src.run --config configs/robustness_delimiter.yaml` then `python -m src.delimiter_check` |
 | Tests | `python -m pytest -q -m "not network"` |
 
 Every generation is cached on a hash of the model, prompt and decode parameters,
@@ -175,6 +181,7 @@ numbers are meaningless by construction), `--n 20` shrinks the question set,
 | robustness: same analysis on the unfiltered 300 | done |
 | hosted cross-generator replication at 27B, 1,655 calls | done |
 | determinism audit of the hosted generator | done, 50/50 across three days |
+| registered robustness: prompt-delimiter variant | done, effect unchanged |
 
 **241 tests** pass (`python -m pytest -q -m "not network"`, about 15s). Three
 more are marked `network` and download the dataset on first run.

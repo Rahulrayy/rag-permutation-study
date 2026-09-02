@@ -1,0 +1,42 @@
+{
+  "arms": {
+    "full": {
+      "alt": {
+        "hi": 0.19883695273231747,
+        "lo": 0.15014013572332094,
+        "point": 0.17479728903716546
+      },
+      "default": {
+        "hi": 0.20378727434829305,
+        "lo": 0.15541129836399142,
+        "point": 0.17952841327987057
+      },
+      "paired_difference": {
+        "excludes_zero": false,
+        "hi": 0.023918899708298608,
+        "lo": -0.013972587169747246,
+        "p": 0.6298,
+        "point": 0.004731124242705109
+      },
+      "ratio": 1.0270663479323137
+    }
+  },
+  "budget": "3",
+  "labels": [
+    "default",
+    "alt"
+  ],
+  "n_alt_population": 274,
+  "n_default_population": 274,
+  "n_replicates": 10000,
+  "n_shared_queries": 274,
+  "order_cells_verified_identical": 1370,
+  "perms": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4"
+  ],
+  "seed": 20260828
+}

@@ -65,10 +65,10 @@ def main(budget: str = "3", n_replicates: int = 10_000, seed: int = 20260828) ->
         ),
         series_labels=("default:  passages, bare", "alt:  <context> … </context>"),
         xlabel="mean within-question SD of token-F1 across the five orderings",
+        star_note="*  the paired default-alt difference excludes zero.",
         footnote=(
-            "*  the paired default-alt difference excludes zero. A registered "
-            "robustness check (ANALYSIS_PLAN Sec. 7), reported without "
-            "multiplicity correction."
+            "A registered robustness check (ANALYSIS_PLAN Sec. 7), reported "
+            "without multiplicity correction."
         ),
     )
     write(out, OUT)
