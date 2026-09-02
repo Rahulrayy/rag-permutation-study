@@ -49,6 +49,16 @@ Not a formatting artifact: re-running the whole thing with the context fenced in
 ([-0.0140, 0.0239]), which is nothing. That was a check registered before the
 main run.
 
+**What drives it is the number of slots, not only the evidence.** Holding the
+retained gold passages fixed and varying only how many passages the context
+presents, the swing still rises — **+0.0372 to +0.0809** token-F1 going from 2
+slots to 5 or 10, in every evidence stratum. It even holds when the context
+contains *neither* gold passage. Most of the sensitivity is bought by the first
+few slots and it flattens after five, so pruning hard reduces order sensitivity
+as a side effect.
+
+![Slot count against permutation SD](results/main_hotpotqa/figures/slot_count.png)
+
 **2. But pruning methods really are selecting on content, not position.** This
 was the study's main hypothesis and it did not survive contact with the data,
 which is the useful outcome. We built a placebo that drops the same number of
@@ -161,6 +171,7 @@ python -m pip install -r requirements.txt      # torch must come from the CUDA i
 | Hosted 27B replication | `python -m src.run --config configs/replication.yaml` |
 | Matched 3B vs 27B comparison | `python -m src.generator_comparison` |
 | Delimiter robustness check | `python -m src.run --config configs/robustness_delimiter.yaml` then `python -m src.delimiter_check` |
+| Slot-count analysis | `python -m src.slot_count` |
 | Tests | `python -m pytest -q -m "not network"` |
 
 Every generation is cached on a hash of the model, prompt and decode parameters,

@@ -331,7 +331,8 @@ three. More positional room, more positional variance. That is the mechanism thi
 section describes, showing up in the one arm whose design isolates it.
 
 Within the pruning arms, the standard deviation rises monotonically with the
-budget in every case. The full-context arm is flat across budgets at 0.1795,
+budget in every case. Section 4.11 decomposes that rise: the budget carries both
+a slot count and an amount of evidence, and both contribute independently. The full-context arm is flat across budgets at 0.1795,
 which is not an exception but a consequence of its definition: it ignores the
 budget and always presents all ten passages.
 
@@ -858,7 +859,10 @@ depends on how much positional room the arm has. On the un-pruned ten-passage
 context the 3B's SD is **4.5x** the 27B's and the difference is unambiguous. On
 the two arms that keep three passages the difference does not separate from zero
 — with three slots there is little room for either model to be sensitive to, and
-the 27B's SD is not distinguishable from the 3B's there.
+the 27B's SD is not distinguishable from the 3B's there. Section 4.11 confirms
+the mechanism this suggests on the 3B directly: with the evidence held fixed,
+the SD rises with the slot count. What stays untested is whether the *gap between
+generators* does.
 
 The instance-level picture moves the same way. On the same 73 questions and the
 same three orderings, the un-pruned arm returns a byte-identical answer for
@@ -934,6 +938,69 @@ passages are separate at all, which is a different prompt rather than a
 delimiter variant, so the numbering contribution remains bounded only by the
 argument that positional numbering is what a real pipeline does. Section 6 keeps
 that as a stated limitation rather than a closed question.
+
+---
+
+### 4.11 The effect tracks the number of permutable slots, not only the evidence
+
+Section 4.9 found the 3B-27B gap largest on the un-pruned context and absent on
+the keep-3 arms, and read that as the effect scaling with the number of
+permutable slots rather than with the model alone. That reading was post-hoc and
+this section tests the half of it the main run can answer: on a fixed generator,
+does the within-question SD track slot count?
+
+**The obstacle is a confound, and the raw numbers cannot resolve it.** In every
+keep-k arm the slot count and the evidence retained rise together — at k = 5 a
+pruner keeps more passages *and* more gold than at k = 2 — so "SD rises with k"
+is equally consistent with "more slots to permute" and with "more evidence, so
+more room for the score to move". Every cell records how many of the two gold
+passages survived, so conditioning on that holds the evidence fixed and leaves
+the slot count as the only thing varying.
+
+![Slot count against permutation SD](results/main_hotpotqa/figures/slot_count.png)
+
+Mean within-question SD over 9,042 arm-budget cells on 274 questions:
+
+| slots | 0 of 2 gold | 1 of 2 gold | 2 of 2 gold |
+|---|---|---|---|
+| 2 | 0.0079 [0.0038, 0.0126] | 0.0575 [0.0481, 0.0671] | 0.0878 [0.0666, 0.1105] |
+| 3 | 0.0164 [0.0099, 0.0236] | 0.0908 [0.0788, 0.1032] | 0.1311 [0.1128, 0.1502] |
+| 5 | 0.0451 [0.0274, 0.0650] | 0.1142 [0.0990, 0.1294] | 0.1591 [0.1404, 0.1781] |
+| 10 | — | — | 0.1686 [0.1519, 0.1854] |
+
+**Both factors are real and separable.** Reading down a column holds the evidence
+fixed and varies only the slots, and the SD rises every time:
+
+| stratum | contrast | |
+|---|---|---|
+| 0 of 2 gold | 2 → 5 slots | **+0.0372 [+0.0211, +0.0549]** |
+| 1 of 2 gold | 2 → 5 slots | **+0.0567 [+0.0416, +0.0724]** |
+| 2 of 2 gold | 2 → 10 slots | **+0.0809 [+0.0540, +0.1073]** |
+
+All three exclude zero. Reading across a row holds the slots fixed and varies
+the evidence, and the SD rises there too. So the budget effect reported in
+Section 4.1 is not one mechanism but two, and neither explains the other away.
+
+Two details are worth drawing out. **The `full` arm is the internal control**: it
+presents ten slots and identical content at all three budgets, and its SD is
+0.1795 at each — when nothing changes, the estimator does not move, which is
+what rules out the budget label itself doing the work. And **the effect does not
+need the evidence to exist at all**: in the 0-gold stratum, where the context
+contains neither gold passage and the answer is not recoverable from it,
+reordering still moves the score, and moves it more with more slots. Order
+sensitivity is partly a property of the context as an object rather than of the
+evidence in it.
+
+**Saturation, and the practical reading.** The gold-2 line rises steeply from 2
+to 5 slots (+0.0713) and then almost flattens from 5 to 10 (+0.0095). Most of
+the order sensitivity is bought by the first few slots. For a practitioner that
+cuts the useful way: pruning hard reduces order sensitivity as a side effect, and
+the reduction is largest exactly where pruning is most aggressive.
+
+**Scope.** This is the within-generator half of the Section 4.9 claim. Whether
+the 3B-27B *gap* tracks slot count needs both generators at more budgets than the
+replication ran, and remains untested. Exploratory: not in the registered
+confirmatory family, and reported without multiplicity correction.
 
 ---
 
@@ -1022,9 +1089,12 @@ recover the answer regardless of where the useful passage sits, and positional
 promotion has correspondingly less to do. That predicts the interaction
 Section 4.9 actually finds — the gap between generators is largest on the
 un-pruned ten-passage context and vanishes on the keep-3 arms, where neither
-model has much positional room. It is a post-hoc reading of four exploratory
-comparisons, not a tested claim, and the right test is a scale ladder rather
-than two points.
+model has much positional room. Half of that is now measured rather than
+inferred: Section 4.11 holds the evidence fixed and shows the SD rising with the
+slot count on the 3B, by +0.0372 to +0.0809 depending on the stratum, with the
+un-pruned arm as an internal control that does not move when its slots do not.
+The other half — whether the gap *between* generators tracks slots — still rests
+on four exploratory comparisons and needs a scale ladder.
 
 **Order dependence inside a method is a distinct and stronger claim, but only
 for one of the two arms.** The LLM pruner's selection instability is the real
@@ -1134,12 +1204,13 @@ no-derivatives licence, which restricts reuse of that arm outside research.
   hosted inference, and the free tier used here (200,000 tokens a day against
   ~830 a call) makes a full arm set impractical without a paid one. The cheapest
   informative version is the three arms of Section 4.9 at a single budget.
-- **An interaction worth testing directly.** The generator gap in Section 4.9 is
-  largest on the un-pruned context and absent on the keep-3 arms, which suggests
-  the effect scales with the number of permutable slots rather than with the
-  model alone. That is a post-hoc reading of four exploratory comparisons. It is
-  testable within the existing protocol by varying the slot count on a fixed
-  generator, and it would sharpen the practical advice considerably.
+- **Does the generator *gap* track slot count?** Section 4.11 settles the
+  within-generator half: with the evidence held fixed, the SD rises with the slot
+  count on the 3B. The cross-generator half does not follow from it, and needs
+  both generators at more budgets than the replication ran — the 27B has keep-3,
+  keep-5 and the un-pruned arm, which is three points and no evidence
+  stratification. It is the same hosted budget as the scale ladder above and
+  should be planned with it rather than separately.
 - **The mechanism behind the RQ2 null is untested.** Section 5 proposes that a
   selector's advantage should track the dispersion of per-passage leave-one-out
   drops within a question. The data to test it is already collected.
