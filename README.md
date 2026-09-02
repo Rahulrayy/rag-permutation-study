@@ -35,23 +35,23 @@ The first is just shuffling. Ask the same question five times over, with the
 surviving paragraphs in a different order each time. Same words, same content,
 nothing else touched.
 
-The second one I like more. It is a placebo pruner, and it throws away exactly as
-many paragraphs as a real tool but picks them by position alone, without reading
-a word. Think of testing someone who claims they can pick the three best bottles
+The second is the one that does the real work. It is a placebo pruner: it throws
+away exactly as many paragraphs as a real tool, but picks them by position alone,
+without reading a word. Think of testing someone who claims they can pick the three best bottles
 out of ten by taste. You compare them against a person who just grabs bottles 1,
 9 and 10 and never opens any of them. If the expert cannot beat that, they are
 not really tasting.
 
 Here is what came out.
 
-**Order matters much more than it should.** Same paragraphs, same wording, nothing
-random left in the model's settings. Just shuffled. The answer changes about half
+**Order changes the answer far more often than I expected.** Same paragraphs,
+same wording, nothing random left in the model's settings. Just shuffled. The answer changes about half
 the time, and when it changes it changes a lot. Only about a third of questions
 give a byte-for-byte identical answer every single time.
 
-**The pruning tools are doing real work.** They beat the placebo comfortably.
-That was my main hypothesis and it was wrong, which is a perfectly good result. I
-set out to show these tools might be fooling everyone, and they are not.
+**The pruning tools are doing real work.** They beat the placebo comfortably. I
+set out to test whether they were mostly exploiting position, and they are not.
+That was my main hypothesis and it did not hold.
 
 **But they barely beat a very crude baseline.** The gap between a sophisticated
 pruner and a simple one turns out to be smaller than the wobble you get from
@@ -67,15 +67,14 @@ sounds.
 keep. Then show it the same three paragraphs in a different order and ask again.
 It picks differently, in 98 cases out of 100. In 23 of those the two attempts had
 no paragraph in common whatsoever. The tool does not really have an answer. It
-has a lottery, and every published result using one of these has drawn a single
-ticket and reported it as the answer.
+has a distribution over answers, and a single run gives you one draw from it.
 
 I ran the whole thing again on a model nine times bigger, to see whether any of
 this is just an artefact of a small model. It is not. The effect is still there,
 at roughly a quarter the size, so it survives but the exact numbers do not carry
 across.
 
-The last part is the bit I would defend hardest, and it is not a result. Before
+The part I care most about is not a result. Before
 collecting any data I wrote down what I expected, what would count as success,
 and exactly which comparisons I would run, then committed that to version control
 so the timestamps prove it. That is what stops you quietly redefining success
@@ -83,30 +82,27 @@ once you have seen how things turned out. Next to it there is a log of every
 mistake I found afterwards, published in full: a caching bug that quietly
 corrupted one method's results from the day it was written, a statistic that
 reported a rounding error as a real finding, a check I had promised in advance to
-run and then never ran. None of them changed a
-conclusion. They are all in there anyway, because a study with no mistakes on
-record usually just means nobody went looking.
+run and then never ran. None of them changed a conclusion. They are all in there
+anyway, because a study with no mistakes on record usually just means nobody went
+looking.
 
 ---
 
-## The question, in one paragraph
+## The same thing, in the vocabulary of the field
 
-A RAG system retrieves passages and puts them in a prompt. Because context is
-expensive, many published methods shorten that context by throwing most of it
-away. All of them are evaluated with the passages in one fixed order.
+This is not a new pruning method. It is an evaluation protocol, two controls, and
+a set of numbers.
 
-Separately, it is well known that language models are sensitive to the order of
-what is in their prompt.
+The problem, stated precisely: a context pruning method is scored against a
+reference point that **moves when the method acts**, because discarding passages
+also repositions the ones that survive. Reported gains therefore confound
+evidence selection with positional promotion, and a single-order evaluation
+cannot separate them.
 
-Those two facts interact. Pruning does not only
-remove passages, it **moves the survivors into new positions**. Drop passages 3,
-5 and 7 from a ten-passage context and passages 8, 9 and 10 get promoted into
-more visible slots. So part of what looks like better evidence selection could
-just be a lucky interaction with position, measured against a reference point
-that moves when the method acts.
-
-This study separates the two. It is not a new pruning method. It is an evaluation
-protocol, two controls, and a set of numbers.
+The protocol holds passage content fixed and varies presentation order, which
+isolates the position effect, and scores every method against a placebo that
+discards the same number of passages by position alone, which isolates the
+selection effect.
 
 ---
 
@@ -145,8 +141,8 @@ as a side effect.
 ![Slot count against permutation SD](results/main_hotpotqa/figures/slot_count.png)
 
 **2. But pruning methods really are selecting on content, not position.** This
-was the study's main hypothesis and it did not survive contact with the data,
-which is the useful outcome. I built a placebo that drops the same number of
+was the study's main hypothesis and the data did not support it. I built a
+placebo that drops the same number of
 passages by position alone, without reading them. Real pruners beat it by
 **+0.2760 token-F1** (95% CI [0.2223, 0.3297]), at every budget tested. The
 control behaves too: an arm that drops passages at random is indistinguishable
@@ -172,7 +168,7 @@ measured anywhere in this study, and a reranker or an LLM pruner is not free on
 any of them.
 
 **5. Two methods are order-dependent inside themselves, not just in their
-scores.** This is the sharper version of the thesis.
+scores.** The same effect, one level further in.
 
 - Ask an LLM which passages to keep, then show it the same passages in a
   different order, and it picks different ones. Agreement between its three
@@ -284,8 +280,9 @@ numbers are meaningless by construction), `--n 20` shrinks the question set,
 | hosted cross-generator replication at 27B, 1,655 calls | done |
 | determinism audit of the hosted generator | done, 50/50 across three days |
 | registered robustness: prompt-delimiter variant | done, effect unchanged |
+| slot-count decomposition | done, from data already collected |
 
-**241 tests** pass (`python -m pytest -q -m "not network"`, about 15s). Three
+**255 tests** pass (`python -m pytest -q -m "not network"`, about 15s). Three
 more are marked `network` and download the dataset on first run.
 
 ## Main limitations
