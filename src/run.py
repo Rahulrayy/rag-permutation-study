@@ -11,6 +11,7 @@ logic, per the repo rule.
 from __future__ import annotations
 
 import argparse
+import collections
 import csv
 import json
 import random
@@ -428,20 +429,26 @@ def audit_determinism(
     sample = random.Random(seed).sample(distinct, min(n, len(distinct)))
     checked = 0
     divergences: list[dict[str, str]] = []
+    # Day composition of what was actually re-issued. The identical rate is only
+    # the strong version of this test if the answers it compares against were
+    # generated on earlier days; recording the spread means a reader does not
+    # have to take that on trust.
+    sampled_days: collections.Counter[str] = collections.Counter()
 
     for prompt in sample:
-        cached = generator.cache.get(
-            cache_key(generator.model, prompt, params.as_key())
-        )
+        key = cache_key(generator.model, prompt, params.as_key())
+        cached = generator.cache.get(key)
         if cached is None:
             # Not generated yet -- a partial run. Nothing to compare against.
             continue
         checked += 1
+        created = generator.cache.created_at(key)
+        sampled_days[created[:10] if created else "unknown"] += 1
         fresh = generator.backend.generate(prompt, params)
         if fresh.text != cached.text:
             divergences.append(
                 {
-                    "prompt_sha256": cache_key(generator.model, prompt, params.as_key()),
+                    "prompt_sha256": key,
                     "cached": cached.text,
                     "fresh": fresh.text,
                 }
@@ -453,6 +460,8 @@ def audit_determinism(
         f"determinism audit: {identical}/{checked} identical on re-issue "
         f"({rate:.1%})"
     )
+    spread = ", ".join(f"{d} x{c}" for d, c in sorted(sampled_days.items()))
+    print(f"    re-issued answers were first generated on: {spread}")
     for d in divergences[:5]:
         # ascii(), not !r: this is the only place a *generation* reaches stdout,
         # and Windows consoles default to cp1252. A 2WikiMultihopQA answer such
@@ -466,6 +475,7 @@ def audit_determinism(
         "identical": identical,
         "identical_rate": rate,
         "model": generator.model,
+        "sampled_first_generated_on": dict(sorted(sampled_days.items())),
         "divergences": divergences,
     }
 

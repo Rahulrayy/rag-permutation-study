@@ -147,6 +147,19 @@ class GenerationCache:
             meta=json.loads(row[2]) if row[2] else None,
         )
 
+    def created_at(self, key: str) -> str | None:
+        """When this key was first generated, as SQLite's UTC timestamp.
+
+        Only the determinism audit needs this, and it needs it to say something
+        the identical-rate alone cannot: that the answers it re-issued today
+        were paid for on *earlier* days. A same-session 50/50 and a cross-day
+        50/50 print the same number and mean very different things.
+        """
+        row = self._conn.execute(
+            "SELECT created_at FROM generations WHERE key = ?", (key,)
+        ).fetchone()
+        return row[0] if row else None
+
     def put(self, key: str, model: str, gen: CachedGeneration) -> None:
         self._conn.execute(
             "INSERT OR REPLACE INTO generations "

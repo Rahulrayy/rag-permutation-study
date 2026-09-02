@@ -1,0 +1,12 @@
+{
+  "checked": 50,
+  "divergences": [],
+  "identical": 50,
+  "identical_rate": 1.0,
+  "model": "qwen/qwen3.8-27b",
+  "sampled_first_generated_on": {
+    "2026-08-30": 27,
+    "2026-08-31": 11,
+    "2026-09-01": 12
+  }
+}
