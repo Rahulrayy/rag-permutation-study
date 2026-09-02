@@ -167,7 +167,7 @@ numbers are meaningless by construction), `--n 20` shrinks the question set,
 | hosted cross-generator replication at 27B, 1,655 calls | done |
 | determinism audit of the hosted generator | done, 50/50 across three days |
 
-**231 tests** pass (`python -m pytest -q -m "not network"`, about 10s). Three
+**241 tests** pass (`python -m pytest -q -m "not network"`, about 15s). Three
 more are marked `network` and download the dataset on first run.
 
 ## Main limitations
