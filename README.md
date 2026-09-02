@@ -83,8 +83,8 @@ mistake I found afterwards, published in full: a caching bug that quietly
 corrupted one method's results from the day it was written, a statistic that
 reported a rounding error as a real finding, a check I had promised in advance to
 run and then never ran. None of them changed a conclusion. They are all in there
-anyway, because a study with no mistakes on record usually just means nobody went
-looking.
+anyway, because a log that records only the things that went right would not be
+much of a log.
 
 ---
 

@@ -247,8 +247,7 @@ content selection.
 the baseline's within-question permutation standard deviation. It answers how
 many orderings-worth of noise the choice of method actually buys.
 
-Two properties of that denominator are worth stating, because both are easy to
-misread. It is the **baseline's** spread, not the method's, so it is the same
+Two properties of that denominator matter, because both are easy to misread. It is the **baseline's** spread, not the method's, so it is the same
 constant for every arm at a given budget and a method is never penalised for its
 own variance. Consequently OAE is a linear rescaling of the raw gain within a
 budget, and the raw gains are reported alongside it in Section 4.3 so the reader
@@ -298,17 +297,17 @@ hypotheses, the primary endpoint, the analysis population, the thresholds and th
 multiplicity family. It remains retrievable from version control at the
 registration commit.
 
-**The registered analysis was executed twice**, and a reader is entitled to know
-which numbers these are. The first execution ran on data in which one arm was
+**The registered analysis was executed twice**, so it should be clear which
+numbers these are. The first execution ran on data in which one arm was
 affected by a caching defect (Section 4.8). The defect was found afterwards, the
 arm was regenerated, and the identical pre-specified procedure was re-run on the
 corrected data; the numbers reported here are from that second execution. No part
 of the specification changed in response to seeing results: the endpoint, the
 nine-comparison family, the population definition, the thresholds and the code
-path are the registered ones. I would resist calling the corrected analysis
-post-hoc for that reason, since what changed was an input error and not an
-analytic choice, but the sequence is stated here rather than left to be inferred
-from the repository.
+path are the registered ones. What changed between the two executions was an
+input error, not an analytic choice. Whether that makes the second execution
+post-hoc is for the reader to judge, which is why the sequence is stated here
+rather than left to be inferred from the repository.
 
 ---
 
@@ -359,13 +358,13 @@ section reported that looser figure while calling it byte-identical. Both counts
 are now emitted by `analyze.answer_stability`, so the definition is visible
 rather than implied; the byte-identical one is quoted here.
 
-So the honest three-way split is: **35% of questions are genuinely stable, 15%
+So the three-way split is: **35% of questions are genuinely stable, 15%
 change their answer without changing their score, and 50% change their score.**
 Only the first group is unaffected by ordering in any meaningful sense, and an
 earlier draft of this section described all 50% that way.
 
-This produces a statistical trap that is worth stating plainly, because the
-study's own pre-registered kill criterion was a median. The median of the whole
+This produces a statistical trap, and the study walked into it: its own
+pre-registered kill criterion was a median. The median of the whole
 distribution is **0.0186**, which is the midpoint of the largest zero and the
 smallest non-zero value. It is not a measure of central tendency of anything; it
 is an artifact of exactly half the questions sitting at zero. One additional
@@ -439,9 +438,9 @@ positional profile: real pruners select nearly uniformly across the ten slots
 (each position taken 9-12% of the time, because HotpotQA places its gold
 paragraphs arbitrarily), whereas each placebo variant takes a fixed three-point
 set — `middle_first` always keeps positions {1, 9, 10}, `edges_first` always
-{5, 6, 7}, `tail_first` always {1, 2, 3}. A reader is entitled to ask how much of
-the +0.2760 is the placebo being positionally handicapped rather than
-evidentially starved.
+{5, 6, 7}, `tail_first` always {1, 2, 3}. That invites the obvious objection:
+how much of the +0.2760 is the placebo being positionally handicapped rather than
+evidentially starved?
 
 The three variants answer it, because they span three maximally different
 positional configurations at identical keep-count:
@@ -466,7 +465,7 @@ this use after the fact, so this is a post-hoc control, but it is one whose
 arms were fixed before the data existed.
 
 **Every method passes, including the compressor.** `llmlingua2` clears the
-placebo at all three budgets (+0.1192, +0.1356, +0.0958), which is worth stating
+placebo at all three budgets (+0.1192, +0.1356, +0.0958), which needs saying
 explicitly because an earlier version of this analysis reported the opposite. A
 caching defect was feeding that arm one question's compressed passages for every
 question in the run; it is described in Section 4.8, and the numbers here are
@@ -668,8 +667,7 @@ keeps enough of the evidence to beat positional dropping comfortably, while stil
 trailing every selection method: it sits below `llm_pruner` at 0.3825 and well
 below `provence_rerank` at 0.4621.
 
-The honest reading is that compression and selection are not equivalent uses of
-the same token budget, but the gap is a matter of degree rather than the arm
+So compression and selection are not equivalent uses of the same token budget, but the gap is a matter of degree rather than the arm
 being unusable. Against the baseline in orderings-worth of noise it is the one
 arm clearly behind, at -0.93 [-1.39, -0.53] at k = 3, so about one ordering's
 worth of noise *worse* than simply reranking and truncating.
@@ -681,7 +679,7 @@ score improves with the budget while its margin over the placebo narrows
 the comparator, which is still acquiring gold passages as k grows, rather than a
 degradation of the method.
 
-### 4.6 Arm-level behaviour worth reporting
+### 4.6 Arm-level behaviour
 
 **The LLM pruner frequently fails to comply with its budget.** Across 822 cells
 it named fewer passages than requested in 200 of them (24.3%) and produced
@@ -752,8 +750,8 @@ significance change in eighteen comparisons.
 The rank flip rate at k = 5 rises from 0.0667 to **0.1067**, crossing the
 registered H3 threshold of 0.10. H3 was specified at the primary budget, where
 the rate is 0.0400 on both populations, so the registered conclusion that H3 is
-not supported is unaffected. But it is worth stating that on the fuller
-population at the largest budget the threshold is nominally met, which is
+not supported is unaffected. But on the fuller population at the largest budget
+the threshold is nominally met, which is
 consistent with the reading that single-order evaluation degrades as more
 context is kept.
 
@@ -988,7 +986,8 @@ All three exclude zero. Reading across a row holds the slots fixed and varies
 the evidence, and the SD rises there too. So the budget effect reported in
 Section 4.1 is not one mechanism but two, and neither explains the other away.
 
-Two details are worth drawing out. **The `full` arm is the internal control**: it
+Two details bear on how to read that. **The `full` arm is the internal
+control**: it
 presents ten slots and identical content at all three budgets, and its SD is
 0.1795 at each — when nothing changes, the estimator does not move, which is
 what rules out the budget label itself doing the work. And **the effect does not
@@ -1243,8 +1242,8 @@ no-derivatives licence, which restricts reuse of that arm outside research.
   run. It does not separate the `[i]` labels from the positions they mark, and
   that would need a template with no indices at all — a different prompt rather
   than a delimiter variant, since it changes how the model is told the passages
-  are separate. Worth doing, and worth stating as a change of prompt rather than
-  filed under robustness.
+  are separate. Worth doing, and it should be reported as a change of prompt
+  rather than filed under robustness.
 - **A second dataset is prepared but not run.** The loader and config for
   2WikiMultihopQA exist and are tested, so the protocol transfers without
   modification: the same ten paragraphs per question and the same column layout.

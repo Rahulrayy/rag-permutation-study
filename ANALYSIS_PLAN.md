@@ -50,13 +50,12 @@ is not published; the design it describes is covered in `WRITEUP.md` Section 3.
 References of the form "Sec. 4" without the word "plan" are sections of *this*
 document. The distinction matters most in Section 9, where both appear.
 
-**Section 9 is append-only and is the point of the exercise.** It records every
-departure from the protocol above, every exploratory addition, and every error
-found after the fact — with the measured impact of each, whether or not that
-impact was zero. Several entries document defects in this project's own analysis
-that were caught and corrected; they are here because a pre-registration whose
-deviation log is empty is not evidence of discipline, it is evidence that nobody
-looked.
+**Section 9 is append-only.** It records every departure from the protocol above,
+every exploratory addition, and every error found after the fact, with the
+measured impact of each, whether or not that impact was zero. Several entries
+document defects in this project's own analysis, found after the results already
+existed. They are in here because a log that records only the things that went
+right would not be much of a log.
 
 | date | entry |
 |---|---|
