@@ -30,7 +30,7 @@ protocol, two controls nobody runs, and a set of numbers.
 
 ---
 
-## What we found
+## What I found
 
 **1. Reordering an identical context changes the answer about half the time.**
 Same passages, same words, greedy decoding, only the order differs. Half of
@@ -61,7 +61,7 @@ as a side effect.
 
 **2. But pruning methods really are selecting on content, not position.** This
 was the study's main hypothesis and it did not survive contact with the data,
-which is the useful outcome. We built a placebo that drops the same number of
+which is the useful outcome. I built a placebo that drops the same number of
 passages by position alone, without reading them. Real pruners beat it by
 **+0.2760 token-F1** (95% CI [0.2223, 0.3297]), at every budget tested. The
 control behaves too: an arm that drops passages at random is indistinguishable

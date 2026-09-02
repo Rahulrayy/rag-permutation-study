@@ -22,11 +22,11 @@ material in their context. Pruning does not only remove passages, it moves the
 survivors into new positions, so a reported pruning gain and a position effect
 are confounded in the standard evaluation.
 
-This study separates them. Holding passage content fixed, we generate answers
-under five orderings of every retained context, and we introduce a
+This study separates them. Holding passage content fixed, I generate answers
+under five orderings of every retained context, and introduce a
 position-matched placebo that drops the same number of passages by position
 alone. Across 45,510 generations covering eleven arms, 274 questions, three
-budgets and five permutations, we find three things. First, reordering an
+budgets and five permutations, I find three things. First, reordering an
 identical context changes the score for half of all questions, and for those
 questions the swing is large, with a median within-question standard deviation of
 0.39 token-F1. Only 35% of questions return a byte-identical answer under all
@@ -36,7 +36,7 @@ keep-count by 0.2760 token-F1 (95% CI [0.2223, 0.3297], Holm-adjusted p = 0.0018
 so their gains are genuine content selection rather than positional promotion.
 Third, and in tension with the second, no practical pruner separates from a plain
 cross-encoder top-k baseline once the gain is measured in units of the baseline's
-own permutation noise. We also show that order dependence reaches inside two of
+own permutation noise. I also show that order dependence reaches inside two of
 the methods themselves: an LLM asked which passages to keep returns selections
 with a mean Jaccard of 0.213 across three presentation orders, and LLMLingua-2,
 a deterministic classifier, compresses a concatenated context differently
@@ -119,7 +119,7 @@ flip across orderings. The nearest neighbours address adjacent questions and eac
 uses a single fixed ordering throughout. Conformal, coverage-controlled filtering
 selects passages under a statistical guarantee on evidence recall [8]. An
 answer-in-context diagnostic asks whether the gold answer survives budgeted
-packing at all, which is adjacent to our observation about aggressive sentence
+packing at all, which is adjacent to my observation about aggressive sentence
 pruning [9]. Benchmark work evaluates robustness to retrieval noise [10]. Closest
 in spirit is a reproduction of position and context-size effects in realistic RAG
 pipelines, which identifies topic sampling as a major source of variance and warns
@@ -217,7 +217,7 @@ construction, and LLMLingua-2 is rate-based, spending the budget as a compressio
 rate of k/n because it produces no passage ranking from which a top-k could be
 taken. Both declare this explicitly, and they are compared on input-token count
 rather than on k. Any table or figure describing a comparison as matched at equal
-keep-count must mark them, and ours do.
+keep-count must mark them, and mine do.
 
 ### 3.5 Arms
 
@@ -303,7 +303,7 @@ arm was regenerated, and the identical pre-specified procedure was re-run on the
 corrected data; the numbers reported here are from that second execution. No part
 of the specification changed in response to seeing results: the endpoint, the
 nine-comparison family, the population definition, the thresholds and the code
-path are the registered ones. We would resist calling the corrected analysis
+path are the registered ones. I would resist calling the corrected analysis
 post-hoc for that reason, since what changed was an input error and not an
 analytic choice, but the sequence is stated here rather than left to be inferred
 from the repository.
@@ -1043,7 +1043,7 @@ selecting different passages will mostly be exchanging passages that make little
 difference, and the space in which a better selector could distinguish itself is
 correspondingly narrow. That is a mechanism which would produce exactly the RQ2
 null, and it is testable: a selector's advantage should track the dispersion of
-per-passage leave-one-out drops within a question. We have not run that test, and
+per-passage leave-one-out drops within a question. I have not run that test, and
 flag it as the most promising follow-up in the data already collected.
 
 **Pruning works; picking a pruner barely matters.** These two sit together and
