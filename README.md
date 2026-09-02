@@ -9,6 +9,90 @@ context selection in RAG.
 
 ---
 
+## The plain-English version
+
+*Skip this if you work on retrieval. It is here because people keep asking me
+what the project is over dinner, and "a permutation-controlled re-evaluation of
+context selection" is not an answer.*
+
+When a chatbot answers a question by looking things up, something has to fetch
+the relevant documents and paste them into the model's prompt. Ten paragraphs,
+say. Long prompts are slow and expensive, so there is now a whole category of
+tools that read those ten and throw most of them away, keeping the two or three
+that matter. Everyone tests these tools the same way: feed the documents in,
+check the answer is still right.
+
+Two things were already known. Language models care about the order things appear
+in their prompt, so the same paragraphs in a different sequence can produce a
+different answer. And pruning tools throw paragraphs away.
+
+Nobody had put those together. When you delete paragraphs 3, 5 and 7 from a list
+of ten, you do not only remove them. You promote everything underneath.
+Paragraph 8 slides up into a more prominent slot. So when a pruning tool looks
+like it is working, some of that might not be careful selection at all. It might
+be lucky repositioning. And because every published evaluation uses one fixed
+order, nobody would ever catch it.
+
+So I ran two controls that nobody runs.
+
+The first is just shuffling. Ask the same question five times over, with the
+surviving paragraphs in a different order each time. Same words, same content,
+nothing else touched.
+
+The second one I like more. It is a placebo pruner, and it throws away exactly as
+many paragraphs as a real tool but picks them by position alone, without reading
+a word. Think of testing someone who claims they can pick the three best bottles
+out of ten by taste. You compare them against a person who just grabs bottles 1,
+9 and 10 and never opens any of them. If the expert cannot beat that, they are
+not really tasting.
+
+Here is what came out.
+
+**Order matters much more than it should.** Same paragraphs, same wording, nothing
+random left in the model's settings. Just shuffled. The answer changes about half
+the time, and when it changes it changes a lot. Only about a third of questions
+give a byte-for-byte identical answer every single time.
+
+**The pruning tools are doing real work.** They beat the placebo comfortably.
+That was my main hypothesis and it was wrong, which is a perfectly good result. I
+set out to show these tools might be fooling everyone, and they are not.
+
+**But they barely beat a very crude baseline.** The gap between a sophisticated
+pruner and a simple one turns out to be smaller than the wobble you get from
+reshuffling the same paragraphs. Which method you pick matters less than a
+formatting decision nobody writes down.
+
+**Pruning is still worth doing.** Keep about a quarter of the text and answer
+quality does not measurably drop, at least on the one thing I measured. Speed and
+running costs I did not measure at all, so that sentence is narrower than it
+sounds.
+
+**And then the strange one.** Ask a language model which three paragraphs to
+keep. Then show it the same three paragraphs in a different order and ask again.
+It picks differently, in 98 cases out of 100. In 23 of those the two attempts had
+no paragraph in common whatsoever. The tool does not really have an answer. It
+has a lottery, and every published result using one of these has drawn a single
+ticket and reported it as the answer.
+
+I ran the whole thing again on a model nine times bigger, to see whether any of
+this is just an artefact of a small model. It is not. The effect is still there,
+at roughly a quarter the size, so it survives but the exact numbers do not carry
+across.
+
+The last part is the bit I would defend hardest, and it is not a result. Before
+collecting any data I wrote down what I expected, what would count as success,
+and exactly which comparisons I would run, then committed that to version control
+so the timestamps prove it. That is what stops you quietly redefining success
+once you have seen how things turned out. Next to it there is a log of every
+mistake I found afterwards, published in full: a caching bug that quietly
+corrupted one method's results from the day it was written, a statistic that
+reported a rounding error as a real finding, a check I had promised in advance to
+run and then never ran. None of them changed a
+conclusion. They are all in there anyway, because a study with no mistakes on
+record usually just means nobody went looking.
+
+---
+
 ## The question, in one paragraph
 
 A RAG system retrieves passages and puts them in a prompt. Because context is
@@ -34,7 +118,8 @@ protocol, two controls nobody runs, and a set of numbers.
 
 *All of it in one setting: HotpotQA distractor, a 4-bit Qwen2.5-3B-Instruct
 generator, greedy decoding, scored with token-F1. A 27B replication (6) says how
-far the magnitudes carry — not far. The protocol is the part meant to transfer.*
+far the magnitudes carry, which is not far. The protocol is the part meant to
+transfer.*
 
 **1. Reordering an identical context changes the answer about half the time.**
 Same passages, same words, greedy decoding, only the order differs. Half of
@@ -55,7 +140,7 @@ check registered before the main run.
 
 **What drives it is the number of slots, not only the evidence.** Holding the
 retained gold passages fixed and varying only how many passages the context
-presents, the swing still rises — **+0.0372 to +0.0809** token-F1 going from 2
+presents, the swing still rises, by **+0.0372 to +0.0809** token-F1 going from 2
 slots to 5 or 10, in every evidence stratum. It even holds when the context
 contains *neither* gold passage. Most of the sensitivity is bought by the first
 few slots and it flattens after five, so pruning hard reduces order sensitivity
@@ -114,8 +199,8 @@ model to name k items rather than a quirk of one small model.
 **6. The effect survives a 9x jump in model size, at about a quarter the
 size.** A hosted replication on a 27B model was matched to the main run exactly:
 the same questions, the same three orderings, byte-identical passage orders, so
-only the generator differs. Order sensitivity is intact — every interval
-excludes zero at the primary budget — but on an un-pruned context the 3B's swing
+only the generator differs. Order sensitivity is intact, with every interval
+excluding zero at the primary budget, but on an un-pruned context the 3B's swing
 is **4.5x** the 27B's
 (0.1668 against 0.0374, paired difference 0.1294 [0.0679, 0.1910]). The 27B
 still answers 16% of questions differently on order alone. So the *protocol*
@@ -214,7 +299,7 @@ this measures deployed behaviour rather than each method's ceiling. Results are
 from one dataset and one model family, which is the main limitation. A
 cross-family probe confirms the effect exists elsewhere but not its size, and a
 27B replication within the same lineage shows it shrinking about fourfold with
-scale — two points, which cannot tell a smooth decay from a threshold. The
+scale, on two points, which cannot tell a smooth decay from a threshold. The
 reference ordering is the dataset's own "as-given" paragraph order rather than a
 retriever ranking, since the distractor setting has no retriever. The
 Provence checkpoint is non-commercial (`cc-by-nc-nd-4.0`).
