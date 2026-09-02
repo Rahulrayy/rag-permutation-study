@@ -2,9 +2,9 @@
 
 ## A permutation-controlled re-evaluation of context selection in retrieval-augmented generation
 
-**Draft, 2026-09-01.** Written against the completed HotpotQA main run. The
-hosted cross-generator replication is not finished, and Section 7 says what
-remains.
+**Draft, 2026-09-02.** Written against the completed HotpotQA main run and the
+completed hosted cross-generator replication at 27B, which is reported in
+Section 4.9. Section 7 says what remains.
 
 All numbers here are from the corrected run. An earlier version reported the
 `llmlingua2` arm wrongly because of a caching defect; Section 4.8 documents it,
@@ -41,7 +41,11 @@ the methods themselves: an LLM asked which passages to keep returns selections
 with a mean Jaccard of 0.213 across three presentation orders, and LLMLingua-2,
 a deterministic classifier, compresses a concatenated context differently
 depending on the order it is given, preserving 0 of 100 passages identically
-across orderings when applied the way it normally is.
+across orderings when applied the way it normally is. A hosted replication on a
+27B model of the same lineage, matched to the main run on questions and on
+orderings so that only the generator differs, finds the ordering effect intact
+but roughly four times smaller on an un-pruned context, and finds the
+position-matched placebo gap replicating.
 
 ---
 
@@ -578,14 +582,15 @@ degradation of the method.
 it named fewer passages than requested in 200 of them (24.3%) and produced
 unparseable output in a further 28.
 
-**This rate reproduces across generators.** The partially complete hosted
-replication uses a 27B model from a different size class, and over its 148
-completed selection cells the under-selection rate is **0.2432**, against
-**0.2433** locally. Agreement to four decimal places across a 3B local model and
-a 27B hosted one, on different sample sizes, suggests the behaviour is a property
-of asking a language model to name k items rather than a quirk of one small
-model. It is the one cross-generator result already in hand; the permutation
-numbers from that run are not yet complete. Deficits are filled deterministically from
+**This rate reproduces across generators.** The hosted replication (Section 4.9)
+uses a 27B model from a different size class, and over its 148 selection cells
+the under-selection rate is **0.2432**, against **0.2433** locally. Agreement to
+four decimal places across a 3B local model and a 27B hosted one, on different
+sample sizes, suggests the behaviour is a property of asking a language model to
+name k items rather than a quirk of one small model. It is worth contrasting with
+the same run's permutation numbers, which do *not* transfer unchanged: this
+defect is scale-invariant where the ordering effect shrinks by roughly four
+times. Deficits are filled deterministically from
 the as-given order and counted rather than silently absorbed. This is a separate
 defect from the order sensitivity above, and it is a finding about deployed
 practice rather than about the method's ceiling.
@@ -694,6 +699,94 @@ onward.
 
 ---
 
+### 4.9 Cross-generator replication: the effect survives a 9x scale jump, smaller
+
+The whole study runs on one 3B generator, which is its principal weakness. A
+hosted replication on **Qwen3.8-27B** now covers that partially: 1,655 calls,
+five arms, k = 3 and 5, three orderings, on the same HotpotQA questions the main
+run drew.
+
+**Two things had to be established before any number here means anything.**
+
+*The population is the 27B's own.* The memorization filter is defined as the
+questions the generator cannot answer with no context, so it is recomputed per
+generator rather than inherited. The 27B answers **26.0%** of the 100 questions
+exactly with no passages at all, against **8.7%** for the 3B. Memorization
+roughly triples with scale, which is a finding in its own right and the reason
+the filter cannot be shared: reusing the 3B's population would have left 17
+questions in the analysis that the 27B answers from memory, inflating every arm
+together. 74 of 100 questions survive.
+
+*The generator is deterministic across days.* The study's endpoint is a variance,
+so hosted nondeterminism would land inside the quantity being reported with
+nothing to separate it from a position effect. 50 prompts sampled from the grid
+and re-issued on 2026-09-02, bypassing the cache, came back **50/50
+byte-identical** to answers first generated on 2026-08-30 (27), 08-31 (11) and
+09-01 (12). Three days of possible routing change, no drift. This is the strong
+form of the check; an earlier same-session 20/20 was not (ANALYSIS_PLAN Sec. 9).
+It is still the easiest case for an API to pass, being 3-5 token answers at
+`max_new_tokens = 32`, and it licenses this run's numbers rather than hosted
+inference generally.
+
+**The comparison is matched exactly, not approximately.** The replication ran
+P = 3 against the main run's P = 5, and fewer orderings give a score fewer
+chances to move, so the two headline SDs are not comparable as they stand.
+The mismatch is removable: both configs seed the permutation draw identically
+and the replication's three strategies are the prefix of the main run's five, so
+for every shared question the two runs present **byte-identical passage
+orders** — verified for all 219 shared cells rather than assumed, and the
+comparison refuses to run if it ever fails. Restricting the main run to those
+three orderings and to the 73 questions both populations retain leaves the
+generator as the only difference.
+
+![Matched 3B vs 27B permutation SD](results/replication_groq/figures/matched_generator_sd.png)
+
+| arm, k=3, P=3, n=73 | 3B | 27B | paired difference |
+|---|---|---|---|
+| `full` | 0.1668 [0.1153, 0.2207] | 0.0374 [0.0131, 0.0678] | **0.1294 [0.0679, 0.1910]**, p = 0.0002 |
+| `llm_pruner` | 0.1024 [0.0613, 0.1469] | 0.0292 [0.0081, 0.0571] | **0.0732 [0.0230, 0.1237]**, p = 0.0048 |
+| `rerank_topk` | 0.0900 [0.0526, 0.1329] | 0.0413 [0.0155, 0.0732] | 0.0487 [-0.0010, 0.0992], p = 0.0550 |
+| `placebo_pos:middle_first` | 0.0503 [0.0216, 0.0832] | 0.0315 [0.0098, 0.0593] | 0.0188 [-0.0222, 0.0604], p = 0.3940 |
+
+The differences are bootstrapped paired, over the shared questions, rather than
+read off the overlap of the two marginal intervals: non-overlap would imply a
+difference but overlap does not imply its absence. These four comparisons are
+**exploratory** and carry no multiplicity correction; they are not in the
+registered confirmatory family. Under Holm across the four, `full` (0.0008) and
+`llm_pruner` (0.0144) survive and the other two do not.
+
+**The reading.** Order sensitivity is not an artifact of a small model: every
+27B interval excludes zero. But it is materially smaller, and how much smaller
+depends on how much positional room the arm has. On the un-pruned ten-passage
+context the 3B's SD is **4.5x** the 27B's and the difference is unambiguous. On
+the two arms that keep three passages the difference does not separate from zero
+— with three slots there is little room for either model to be sensitive to, and
+the 27B's SD is not distinguishable from the 3B's there.
+
+The instance-level picture moves the same way. On the same 73 questions and the
+same three orderings, the un-pruned arm returns a byte-identical answer for
+**83.6%** of questions at 27B against **39.7%** at 3B, and the score moves for
+**12.3%** against **42.5%**. The 14%-of-questions pattern from Section 4.1 —
+a different answer that scores the same — shrinks from 17.8% to 4.1%.
+
+**The placebo gap replicates.** At k = 3 the cross-encoder baseline beats the
+position-matched placebo by **+0.2453 [0.1090, 0.3807]** and at k = 5 by
+**+0.1760 [0.0530, 0.2975]**, both surviving Holm within this run's three-member
+family. The primary endpoint's arm, `provence_rerank`, is an encoder and does not
+run on a chat API, so this is the same claim carried by a different arm rather
+than the registered comparison repeated. Content selection beats positional
+dropping at 27B too.
+
+**And the LLM pruner's budget defect is scale-invariant.** Over the 27B's 148
+selection cells it names fewer passages than asked in 36, a rate of **0.2432**
+against **0.2433** locally. Section 4.6 has the reading.
+
+What this does not do is settle generality. It is a **scale** check within one
+training lineage, on one dataset, with one hosted model, and Section 6 keeps it
+filed that way.
+
+---
+
 ## 5. Discussion
 
 **The two central results are in tension, and the tension is the point.** RQ1
@@ -747,6 +840,28 @@ pruning result without a permutation-noise denominator can make a difference
 visible that is smaller than the variation induced by an arbitrary presentation
 choice.
 
+**Scale shrinks the effect without removing it, and that changes who should
+care.** Section 4.9 puts the 3B's un-pruned permutation SD at 4.5x the 27B's on
+matched questions and matched orderings. Neither the optimistic reading nor the
+dismissive one survives that number. The effect is not a small-model artifact:
+every interval at 27B excludes zero, and a model people would actually deploy
+still answers 16% of questions differently depending on passage order alone. But
+it is not the same size, so the headline instance-level figures in Section 4.1 —
+half of questions moving, a 0.39 median swing — belong to the 3B and should not
+be quoted as though they described generators in general. The protocol is the
+transferable contribution here; the magnitudes are a property of the generator
+measured.
+
+The mechanism is at least consistent with the oracle result above. If most
+passages are close to evidentially inert, a stronger model has more capacity to
+recover the answer regardless of where the useful passage sits, and positional
+promotion has correspondingly less to do. That predicts the interaction
+Section 4.9 actually finds — the gap between generators is largest on the
+un-pruned ten-passage context and vanishes on the keep-3 arms, where neither
+model has much positional room. It is a post-hoc reading of four exploratory
+comparisons, not a tested claim, and the right test is a scale ladder rather
+than two points.
+
 **Order dependence inside a method is a distinct and stronger claim, but only
 for one of the two arms.** The LLM pruner's selection instability is the real
 result: its input as a *set* is unchanged, and its choice changes anyway, in 98
@@ -775,9 +890,10 @@ the Qwen lineage confirms that a permutation effect exists there as well (64.6%
 of questions move, against 50.0% here), but that probe used a different
 population, three permutations rather than five and a weaker model, so it
 supports the existence of the effect outside one model family and not any
-comparison of magnitude. A hosted cross-generator replication at 27B is
-partially complete, at 1,642 of roughly 1,655 calls, held up by a
-tokens-per-day quota rather than by anything about the method.
+comparison of magnitude. A hosted cross-generator replication at 27B is complete
+and reported in Section 4.9; it is a **scale** check within the Qwen lineage, not
+a family check, and it finds the effect intact but roughly four times smaller,
+which bounds how far the magnitudes here should be carried.
 
 **"Rank" is the dataset's as-given order.** HotpotQA distractor has no retriever,
 so the reference ordering is the dataset's own paragraph order rather than a
@@ -800,6 +916,18 @@ demonstrating generality.
 4.1 shows. This limits comparison with any prior work that reports a median
 instead of a distribution.
 
+**The order-adjusted effect is unstable when the baseline is nearly order-stable.**
+OAE divides a gain by the baseline's permutation SD, so as that denominator
+approaches zero the ratio and its bootstrap interval diverge. This is visible in
+the replication at k = 5, where `rerank_topk`'s SD is 0.0161 with an interval
+touching zero and the resulting OAE intervals run to absurd magnitudes; those
+values are not reported and should not be. The main run is not close to this
+regime — its baseline SD at k=3 is 0.1142 with a lower bound of 0.0924 — but the
+quantity is a ratio and inherits a ratio's behaviour, so any future run on a
+more order-stable generator should check the denominator before quoting an OAE.
+The placebo gap, a difference rather than a ratio, has no such failure mode,
+which is one reason it and not OAE is the registered primary endpoint.
+
 **Licensing.** The Provence checkpoint is released under a non-commercial,
 no-derivatives licence, which restricts reuse of that arm outside research.
 
@@ -807,15 +935,24 @@ no-derivatives licence, which restricts reuse of that arm outside research.
 
 ## 7. What remains
 
-- The hosted cross-generator replication at 27B is **1,642 of roughly 1,655
-  calls complete**, with 13 remaining. It is rate-limited by a tokens-per-day
-  quota rather than blocked, and every completed call is cached, so it resumes
-  rather than restarts. Sections 5 and 6 will need revision once it lands. Note
-  what it can and cannot establish: it is a **scale** check, 3B to 27B, and not a
-  family check, since both models share a training lineage. A separate
-  cross-family probe covers that and is reported in Section 6.
-- The related-work citations are described rather than formally cited, and need
-  checking against the papers before they become a bibliography.
+- **A scale ladder, not two points.** Section 4.9 compares a 3B and a 27B and
+  finds the ordering effect intact but roughly four times smaller. Two points
+  cannot distinguish a smooth decay from a threshold, and cannot say whether the
+  effect continues to shrink or flattens out. Three or four sizes in one family,
+  on the same questions and orderings, would answer the question this study can
+  currently only bound. The protocol needs no modification for it; the cost is
+  hosted inference, and the free tier used here (200,000 tokens a day against
+  ~830 a call) makes a full arm set impractical without a paid one. The cheapest
+  informative version is the three arms of Section 4.9 at a single budget.
+- **An interaction worth testing directly.** The generator gap in Section 4.9 is
+  largest on the un-pruned context and absent on the keep-3 arms, which suggests
+  the effect scales with the number of permutable slots rather than with the
+  model alone. That is a post-hoc reading of four exploratory comparisons. It is
+  testable within the existing protocol by varying the slot count on a fixed
+  generator, and it would sharpen the practical advice considerably.
+- **The mechanism behind the RQ2 null is untested.** Section 5 proposes that a
+  selector's advantage should track the dispersion of per-passage leave-one-out
+  drops within a question. The data to test it is already collected.
 - **A second dataset is prepared but not run.** The loader and config for
   2WikiMultihopQA exist and are tested, so the protocol transfers without
   modification: the same ten paragraphs per question and the same column layout.
@@ -839,6 +976,21 @@ recomputing anything, and the selection-stability probe writes its own artifact.
 The analysis plan was registered in version control before any main-run data
 existed, and every departure from it, together with every exploratory addition,
 is recorded and dated in the plan's protocol-deviation section.
+
+The replication in Section 4.9 is reproducible on the same terms. Its grid
+resumes rather than restarts, because every call is cached on a hash of model,
+prompt and decode parameters; the determinism audit deliberately bypasses that
+cache, since going through it would return the stored answer and report a
+perfect score, which is the one result it cannot be allowed to produce. The
+matched 3B-vs-27B comparison asserts that the two runs present identical passage
+orders and raises rather than reports if they ever do not.
+
+```bash
+python -m src.run     --config configs/replication.yaml            # the grid
+python -m src.run     --config configs/replication.yaml --audit 50 # determinism
+python -m src.analyze --config configs/replication.yaml            # RQ1-RQ4
+python -m src.generator_comparison                    # Section 4.9
+```
 
 ---
 

@@ -82,9 +82,25 @@ of cases, and that rate reproduces to four decimal places on a 27B model from a
 different size class (0.2432 against 0.2433), so it is a property of asking a
 model to name k items rather than a quirk of one small model.
 
+**5. The effect survives a 9x jump in model size, at about a quarter the
+size.** A hosted replication on a 27B model was matched to the main run exactly:
+the same questions, the same three orderings, byte-identical passage orders, so
+only the generator differs. Order sensitivity is intact — every interval
+excludes zero — but on an un-pruned context the 3B's swing is **4.5x** the 27B's
+(0.1668 against 0.0374, paired difference 0.1294 [0.0679, 0.1910]). The 27B
+still answers 16% of questions differently on order alone. So the *protocol*
+transfers and the *magnitudes* do not, and the numbers above should be read as
+belonging to a 3B rather than to generators in general. The placebo gap
+replicates at 27B; the LLM pruner's budget defect is scale-invariant where the
+ordering effect is not.
+
+![Matched 3B vs 27B permutation SD](results/replication_groq/figures/matched_generator_sd.png)
+
 **Memorization is not the explanation.** Only 10% of questions can be answered
 with no passages at all, and the analysis is restricted to the questions the
-model gets wrong without context.
+model gets wrong without context. Worth knowing for anyone reusing the protocol:
+that rate triples with scale, to 26% on the 27B, which is why the filter is
+recomputed per generator rather than shared.
 
 ---
 
@@ -108,7 +124,7 @@ model gets wrong without context.
   existed, and are retrievable at commit `2f24548`.
 
 The scale: **45,510 generations**, 11 arms, 274 questions, 3 budgets, 5
-permutations.
+permutations, plus **1,655 hosted calls** for the 27B replication.
 
 `WRITEUP.md` covers all of this properly, including the parts that are easy to
 get wrong.
@@ -128,6 +144,8 @@ python -m pip install -r requirements.txt      # torch must come from the CUDA i
 | Analysis | `python -m src.analyze --config configs/main.yaml` |
 | Figures | `python -m src.figures --config configs/main.yaml` |
 | Selection-stability probe | `python -m src.selection_probe --config configs/main.yaml --n 100` |
+| Hosted 27B replication | `python -m src.run --config configs/replication.yaml` |
+| Matched 3B vs 27B comparison | `python -m src.generator_comparison` |
 | Tests | `python -m pytest -q -m "not network"` |
 
 Every generation is cached on a hash of the model, prompt and decode parameters,
@@ -146,7 +164,8 @@ numbers are meaningless by construction), `--n 20` shrinks the question set,
 | main run, 45,510 generations | done |
 | confirmatory analysis and figures | done |
 | robustness: same analysis on the unfiltered 300 | done |
-| hosted cross-generator replication at 27B | 1,642 of ~1,655 calls, rate-limited |
+| hosted cross-generator replication at 27B, 1,655 calls | done |
+| determinism audit of the hosted generator | done, 50/50 across three days |
 
 **231 tests** pass (`python -m pytest -q -m "not network"`, about 10s). Three
 more are marked `network` and download the dataset on first run.
@@ -155,8 +174,10 @@ more are marked `network` and download the dataset on first run.
 
 Pruner checkpoints are used as published on a dataset they were not tuned for, so
 this measures deployed behaviour rather than each method's ceiling. Results are
-from one dataset and one model family, which is the main limitation, with a
-cross-family probe confirming the effect exists elsewhere but not its size. The
+from one dataset and one model family, which is the main limitation. A
+cross-family probe confirms the effect exists elsewhere but not its size, and a
+27B replication within the same lineage shows it shrinking about fourfold with
+scale — two points, which cannot tell a smooth decay from a threshold. The
 reference ordering is the dataset's own "as-given" paragraph order rather than a
 retriever ranking, since the distractor setting has no retriever. The
 Provence checkpoint is non-commercial (`cc-by-nc-nd-4.0`).
