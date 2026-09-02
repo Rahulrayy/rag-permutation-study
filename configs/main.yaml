@@ -21,7 +21,14 @@ data:
   n_queries: 300
   seed: 20260828
   stratify_by: hop_type
-  memorization_filter: true    # restrict primary analysis to nocontext-incorrect
+  # The correctness rule, stated rather than inherited from a default. What ran
+  # is `em >= 1.0`; ANALYSIS_PLAN Sec. 3 registered `f1 >= 0.8`, and Sec. 9
+  # records the deviation. It changes the population by one query of 300 and the
+  # primary endpoint by at most 0.002, so this pins what actually produced the
+  # published numbers rather than silently re-baselining them.
+  memorization_filter:
+    metric: em
+    threshold: 1.0
 
 generator:
   backend: local

@@ -8,7 +8,7 @@ import pytest
 import src.run
 from src.cache import CachedGeneration, GenerationCache
 from src.generate import CachedGenerator, DecodeParams, DummyGenerator
-from src.run import audit_determinism
+from src.run import Config, _memorization_rule, audit_determinism
 
 
 class _Drifting:
@@ -195,3 +195,42 @@ def test_a_slow_arm_reports_progress_with_an_eta(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "full: selected" in out
     assert "cells" in out and "left)" in out
+
+
+# --------------------------------------------------------------------------- #
+# The memorization rule -- a registered parameter that used to live in a default
+# --------------------------------------------------------------------------- #
+
+def test_memorization_rule_bool_keeps_the_historical_default():
+    """`memorization_filter: true` must stay em >= 1.0.
+
+    That is what the main run applied, so changing it would silently re-baseline
+    every published number on a re-run.
+    """
+    assert _memorization_rule(True) == ("em", 1.0)
+
+
+def test_memorization_rule_reads_metric_and_threshold():
+    assert _memorization_rule({"metric": "f1", "threshold": 0.8}) == ("f1", 0.8)
+    assert _memorization_rule({"metric": "em"}) == ("em", 1.0)
+
+
+def test_memorization_rule_rejects_an_unknown_metric():
+    with pytest.raises(ValueError, match="must be 'em' or 'f1'"):
+        _memorization_rule({"metric": "rouge"})
+
+
+def test_memorization_rule_rejects_a_bare_string():
+    with pytest.raises(TypeError, match="bool or a"):
+        _memorization_rule("f1 >= 0.8")
+
+
+def test_shipped_configs_state_the_rule_rather_than_defaulting_to_it():
+    """ANALYSIS_PLAN Sec. 3 registers this parameter, so a config that filters
+    should say what rule it filters by -- the deviation recorded in Sec. 9
+    happened precisely because the answer lived in a function's default."""
+    for name in ("main.yaml", "replication.yaml"):
+        cfg = Config.load(f"configs/{name}")
+        spec = cfg["data"]["memorization_filter"]
+        assert isinstance(spec, dict), f"{name} leaves the rule to a default"
+        assert _memorization_rule(spec) == ("em", 1.0), name

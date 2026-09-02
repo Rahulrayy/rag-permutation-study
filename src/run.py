@@ -18,7 +18,7 @@ import random
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import yaml
 
@@ -207,8 +207,17 @@ def run(cfg: Config) -> Path:
                 "cfg['arms']; the filter needs its predictions"
             )
         before = len(examples)
-        examples = memorization_filter(examples, nocontext_preds)
-        print(f"memorization filter: {before} -> {len(examples)} queries")
+        metric, threshold = _memorization_rule(data_cfg["memorization_filter"])
+        examples = memorization_filter(
+            examples,
+            nocontext_preds,
+            correct_fn=exact_match if metric == "em" else token_f1,
+            threshold=threshold,
+        )
+        print(
+            f"memorization filter ({metric} >= {threshold}): "
+            f"{before} -> {len(examples)} queries"
+        )
 
     # `placebo_pos` in a config means all three positional strategies, each as
     # its own arm (`placebo_pos:middle_first`, ...). They test three different
@@ -389,6 +398,33 @@ def run(cfg: Config) -> Path:
         print(f"wrote determinism audit -> {audit_path}")
 
     return out_path
+
+
+def _memorization_rule(spec: Any) -> tuple[str, float]:
+    """The correctness rule the memorization filter applies, as (metric, threshold).
+
+    This used to be a bare `memorization_filter: true` in the config and the
+    default arguments of `memorization_filter` everywhere else, which is how the
+    main run came to apply `em >= 1.0` where ANALYSIS_PLAN Sec. 3 had registered
+    `f1 >= 0.8`. The deviation changed the population by one query of 300 and the
+    primary endpoint by 0.002 (Sec. 9 has the numbers), so nothing rests on it --
+    but a registered parameter should not have been reachable only through a
+    default. Configs now state the rule, and `true` is still accepted so that a
+    config which does not care keeps working.
+    """
+    if spec is True:
+        return "em", 1.0
+    if isinstance(spec, Mapping):
+        metric = str(spec.get("metric", "em")).lower()
+        if metric not in ("em", "f1"):
+            raise ValueError(
+                f"memorization_filter.metric must be 'em' or 'f1', got {metric!r}"
+            )
+        return metric, float(spec.get("threshold", 1.0))
+    raise TypeError(
+        "memorization_filter must be a bool or a {metric, threshold} mapping, "
+        f"got {type(spec).__name__}"
+    )
 
 
 def audit_determinism(

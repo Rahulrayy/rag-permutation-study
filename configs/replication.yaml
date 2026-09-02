@@ -61,7 +61,12 @@ data:
   # a subset-in-spirit but not in fact of, the main run's. Reusing the 3B's
   # population instead would leave queries the 27B answers from memory in the
   # analysis and inflate every arm equally.
-  memorization_filter: true
+  # Same rule as the main run, stated rather than defaulted (see
+  # configs/main.yaml and ANALYSIS_PLAN Sec. 9). Sharing the rule is what makes
+  # the two populations differ only by the generator's own memorization.
+  memorization_filter:
+    metric: em
+    threshold: 1.0
 
 generator:
   backend: groq

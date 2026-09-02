@@ -904,6 +904,22 @@ have no keep-count by construction and are compared on input-token count instead
 LLMLingua-2 additionally presents n permutable units where a keep-k arm presents
 k, so its raw permutation variance is not comparable in magnitude to the others.
 
+**The filter that defines the population applied the wrong registered rule.**
+The analysis plan registers correctness under `nocontext` as token-F1 >= 0.8,
+with exact match reported alongside as a sensitivity check. The code applied
+exact match, because the call site passed no rule and the function's default was
+EM; the two roles were swapped and the registered rule was never run. It moves
+one question of 300 — one the generator answers at EM 0 and token-F1 exactly
+0.8000 — and the population is 274 rather than the registered 273. Re-running the
+primary endpoint on the registered population moves it by at most 0.002, in the
+third decimal, with p = 0.0002 and every interval, ordering and conclusion
+unchanged. The published numbers are kept on the applied population rather than
+re-baselined to move a third decimal, and the registered rule is reported as the
+sensitivity check. The plan's protocol-deviation section has the full table. The
+defect worth naming is not the value but its reachability: a registered
+parameter should not have been settable only through a function default, and it
+now has to be stated in the config.
+
 **The analysis population excludes questions answerable without context.** That
 is the registered primary population, and Section 4.7 reports the same analysis
 on the unfiltered 300 as a robustness check: the primary endpoint holds at every
