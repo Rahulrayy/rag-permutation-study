@@ -97,6 +97,69 @@ def load_scores(csv_path: str | Path, metric: str, budget: str) -> dict[str, dic
     }
 
 
+def answer_stability(
+    csv_path: str | Path, budget: str, arm: str = "full"
+) -> dict[str, Any]:
+    """The three-way split behind RQ1: stable, same-score-different-answer, moved.
+
+    A within-question SD of zero means the *score* did not move, not that the
+    answer did not. Separating the two is the point of the RQ1 presentation, and
+    the counts were previously computed by hand -- which put a number in the
+    write-up that no committed code produced, against Sec. 8's claim that every
+    quantity is reproducible. It lives here now.
+
+    Two notions of "the same answer" are reported rather than one, because they
+    disagree by two questions out of 274 and the write-up called the looser one
+    "byte-identical":
+
+      ``identical``          the raw generated strings agree exactly.
+      ``identical_casefold`` they agree after stripping and lowercasing.
+
+    Case-only differences are arguably not different answers, so the looser count
+    is the more meaningful one; it is simply not the byte-identical one.
+    """
+    by_qid: dict[str, dict[int, tuple[float, str]]] = collections.defaultdict(dict)
+    with open(csv_path, "r", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            if row["arm"] == arm and row["budget"] == budget:
+                by_qid[row["qid"]][int(row["perm"])] = (
+                    float(row["f1"]),
+                    row["prediction"],
+                )
+    if not by_qid:
+        raise ValueError(f"no rows for arm {arm!r} at budget {budget!r} in {csv_path}")
+
+    n = len(by_qid)
+    moved = zero_sd = zero_sd_diff_answer = identical = identical_cf = 0
+    for cells in by_qid.values():
+        f1s = [cells[i][0] for i in sorted(cells)]
+        preds = [cells[i][1] for i in sorted(cells)]
+        sd = float(np.std(f1s, ddof=1)) if len(f1s) > 1 else 0.0
+        same_raw = len(set(preds)) == 1
+        same_cf = len({p.strip().lower() for p in preds}) == 1
+        identical += same_raw
+        identical_cf += same_cf
+        if sd > 0:
+            moved += 1
+        else:
+            zero_sd += 1
+            zero_sd_diff_answer += not same_raw
+    return {
+        "arm": arm,
+        "budget": budget,
+        "n_queries": n,
+        "n_permutations": max(len(c) for c in by_qid.values()),
+        "score_moved": moved,
+        "score_moved_share": moved / n,
+        "zero_sd": zero_sd,
+        "zero_sd_but_different_answer": zero_sd_diff_answer,
+        "identical": identical,
+        "identical_share": identical / n,
+        "identical_casefold": identical_cf,
+        "identical_casefold_share": identical_cf / n,
+    }
+
+
 def _boot(
     scores: PerArmScores,
     arms: Sequence[str],
@@ -325,6 +388,10 @@ def analyze(cfg: Config, budgets: Sequence[str] | None = None, metric: str = "f1
             ci=ci,
             seed=seed,
         )
+        out[f"budget_{budget}"]["answer_stability"] = answer_stability(
+            csv_path, budget
+        )
+
         # Checkpoint after every budget: the whole grid is ~70 minutes and the
         # primary result is finished within the first third of it.
         #

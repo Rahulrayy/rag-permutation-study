@@ -29,7 +29,7 @@ alone. Across 45,510 generations covering eleven arms, 274 questions, three
 budgets and five permutations, we find three things. First, reordering an
 identical context changes the score for half of all questions, and for those
 questions the swing is large, with a median within-question standard deviation of
-0.39 token-F1. Only 36% of questions return a byte-identical answer under all
+0.39 token-F1. Only 35% of questions return a byte-identical answer under all
 five orderings. Second, the pre-registered primary endpoint is
 clearly positive: published pruners beat the position-matched placebo at equal
 keep-count by 0.2760 token-F1 (95% CI [0.2223, 0.3297], Holm-adjusted p = 0.0018),
@@ -282,6 +282,15 @@ reported with intervals but never corrected, since widening a Holm family change
 the adjusted values of everything inside it. Confidence intervals rather than
 p-values are the primary presentation.
 
+**A bootstrap p-value has a resolution floor**, and several reported here sit on
+it. The two-sided value is `2 * max(prop, 1/B)` over B = 10,000 replicates, so
+the smallest it can return is **0.0002**, and a comparison reported at p = 0.0002
+should be read as p < 0.0002 rather than as a point estimate. For the primary
+endpoint that floor is not close to binding: none of the 10,000 replicates falls
+at or below zero and the smallest is +0.1754, so the interval, not the p-value,
+carries the information. The Holm-adjusted 0.0018 is nine times the same floor
+and inherits the same reading.
+
 The analysis plan was registered before any main-run data existed, fixing the
 hypotheses, the primary endpoint, the analysis population, the thresholds and the
 multiplicity family. It remains retrievable from version control at the
@@ -334,14 +343,20 @@ deal: the median standard deviation among them is **0.3912** and the maximum is
 
 **A zero standard deviation means the score did not move, not that the answer did
 not move**, and the difference is substantial. Of those 137 questions, the
-generator produced **more than one distinct answer string in 39 of them
-(28.5%)**; only **98 questions of 274 (35.8%)** return a byte-identical answer
-under all five orderings. The 39 are almost entirely cases where every ordering
+generator produced **more than one distinct answer string in 41 of them
+(29.9%)**; only **96 questions of 274 (35.0%)** return a byte-identical answer
+under all five orderings. The 41 are almost entirely cases where every ordering
 is wrong in a different way and each scores zero, for instance one question
 answered variously as "Elbridge Gerry", "Elbridge, New York" and "Hobart", all
 scoring 0.000.
 
-So the honest three-way split is: **36% of questions are genuinely stable, 14%
+Two questions of the 274 differ only in capitalisation. Counting those as the
+same answer gives 98 (35.8%) rather than 96, and an earlier version of this
+section reported that looser figure while calling it byte-identical. Both counts
+are now emitted by `analyze.answer_stability`, so the definition is visible
+rather than implied; the byte-identical one is quoted here.
+
+So the honest three-way split is: **35% of questions are genuinely stable, 15%
 change their answer without changing their score, and 50% change their score.**
 Only the first group is unaffected by ordering in any meaningful sense, and an
 earlier draft of this section described all 50% that way.
@@ -375,8 +390,17 @@ Both the uncorrected and the corrected value are reported, always, so that the
 choice between them cannot be made after seeing which is more favourable.
 
 The result holds at every budget, and it holds for every method in the
-confirmatory family. All fifteen confirmatory Placebo Gap comparisons, five arms
-by three budgets, survive Holm correction.
+confirmatory family. All fifteen Placebo Gap comparisons, five arms by three
+budgets, survive Holm correction.
+
+**Only five of those fifteen are confirmatory**, and the distinction matters
+because this document is otherwise strict about it. The registered family is
+nine comparisons *at the primary budget*, so the five Placebo Gap rows at k = 3
+are confirmatory and the ten at k = 2 and k = 5 are exploratory by the plan's own
+definition. Holm is nevertheless applied within each budget separately, which is
+conservative relative to the registration — it corrects comparisons the plan said
+needed no correction — but it means "survives Holm" at k = 2 and k = 5 should be
+read as a descriptive robustness statement, not as a registered test.
 
 | Arm | k = 2 | k = 3 | k = 5 |
 |---|---|---|---|
@@ -405,6 +429,37 @@ them taken. An arm that discards passages at random should be indistinguishable
 from an arm that discards them by position, and it is. Without this row the
 positive results would be much weaker evidence, because a placebo gap that came
 out positive for everything would suggest the comparison itself was biased.
+
+**The gap is content, not position, and the three placebo variants measure
+that directly.** The placebo is matched to the pruners on keep-count but not on
+positional profile: real pruners select nearly uniformly across the ten slots
+(each position taken 9-12% of the time, because HotpotQA places its gold
+paragraphs arbitrarily), whereas each placebo variant takes a fixed three-point
+set — `middle_first` always keeps positions {1, 9, 10}, `edges_first` always
+{5, 6, 7}, `tail_first` always {1, 2, 3}. A reader is entitled to ask how much of
+the +0.2760 is the placebo being positionally handicapped rather than
+evidentially starved.
+
+The three variants answer it, because they span three maximally different
+positional configurations at identical keep-count:
+
+| arm | positions kept | gold retained (of 2) | mean token-F1 |
+|---|---|---|---|
+| `placebo_pos:middle_first` | {1, 9, 10} | 0.650 | 0.1862 |
+| `placebo_pos:edges_first` | {5, 6, 7} | 0.562 | 0.1753 |
+| `placebo_pos:tail_first` | {1, 2, 3} | 0.540 | 0.1855 |
+| `random_drop` | uniform | 0.569 | 0.1672 |
+| `provence_rerank` | uniform | **1.686** | **0.4621** |
+
+Across four arms whose positional profiles could hardly differ more, the score
+varies by **0.019 token-F1**. The primary endpoint is **0.2760**. So position
+accounts for at most about 7% of the gap and evidence retention for the rest,
+which the gold column shows directly: the pruner retains 1.686 gold passages
+against the placebo's 0.650. The placebo gap is a content effect, and the
+positional component is bounded by measurement rather than assumed away. The
+`edges_first` and `tail_first` arms were registered as exploratory and are put to
+this use after the fact, so this is a post-hoc control, but it is one whose
+arms were fixed before the data existed.
 
 **Every method passes, including the compressor.** `llmlingua2` clears the
 placebo at all three budgets (+0.1192, +0.1356, +0.0958), which is worth stating
@@ -446,6 +501,37 @@ method is therefore **+0.034 token-F1** over the baseline, against the **+0.276*
 by which it beats the positional placebo. That contrast is the whole of RQ2: the
 cross-encoder baseline is strong, and the remaining headroom above it is small in
 absolute terms before any normalisation is applied.
+
+**What the same numbers say about pruning itself**, which is the question a
+practitioner actually has and which the method-versus-method framing above does
+not answer. Every arm here is being compared to a cross-encoder baseline; none of
+them is being compared to not pruning at all. Against the full ten-passage
+context:
+
+| arm, k = 3 | mean token-F1 | vs `full` | context kept |
+|---|---|---|---|
+| `full` | 0.4731 | — | 100% |
+| `provence_rerank` | 0.4621 | **-0.0110** | 27% |
+| `rerank_topk` | 0.4279 | -0.0452 | 25% |
+| `llm_pruner` | 0.3825 | -0.0906 | 28% |
+| `llmlingua2` | 0.3218 | -0.1513 | 30% |
+| `provence_full` | 0.3937 | -0.0794 | 7% |
+
+The best pruner's deficit against the full context is **-0.0110 [-0.0510,
++0.0284]**, which does not exclude zero (p = 0.5854), for roughly a **73%
+reduction in context**. The same comparison for the plain cross-encoder baseline
+is -0.0452 [-0.0865, -0.0048] and does exclude zero (p = 0.0300). At k = 5 the
+best pruner keeps 46% of the context for -0.0103.
+
+So the honest practical summary is narrower and more useful than "the methods do
+not separate": **a good pruner buys a large context reduction at a quality cost
+this study cannot distinguish from zero, and a naive one does not.** That is a
+result about pruning as a practice rather than about which pruner to pick, and it
+sits comfortably beside RQ2 — the methods are hard to tell apart from each other,
+and the good ones are hard to tell apart from not pruning, because the whole band
+is narrow relative to ordering noise. These comparisons are exploratory:
+`full` has no keep-count, so it is matched on input-token count rather than on k
+(Section 3.4), and none of them is in the registered family.
 
 **Is the null an artifact of the denominator?** It is not, and the check is worth
 reporting because the denominator is genuinely outlier-sensitive: the baseline's
@@ -766,7 +852,7 @@ the 27B's SD is not distinguishable from the 3B's there.
 The instance-level picture moves the same way. On the same 73 questions and the
 same three orderings, the un-pruned arm returns a byte-identical answer for
 **83.6%** of questions at 27B against **39.7%** at 3B, and the score moves for
-**12.3%** against **42.5%**. The 14%-of-questions pattern from Section 4.1 —
+**12.3%** against **42.5%**. The 15%-of-questions pattern from Section 4.1 —
 a different answer that scores the same — shrinks from 17.8% to 4.1%.
 
 **The placebo gap replicates.** At k = 3 the cross-encoder baseline beats the
@@ -791,7 +877,7 @@ filed that way.
 
 **The two central results are in tension, and the tension is the point.** RQ1
 finds that reordering identical content changes the score for half of all
-questions, often dramatically, and changes the answer string for a further 14%
+questions, often dramatically, and changes the answer string for a further 15%
 without moving the score. RQ3 finds that only about 4% of method-pair
 rankings reverse across orderings. Both are true, and they are not contradictory.
 Per-question volatility is large but largely uncorrelated across questions, so it
@@ -828,6 +914,19 @@ correspondingly narrow. That is a mechanism which would produce exactly the RQ2
 null, and it is testable: a selector's advantage should track the dispersion of
 per-passage leave-one-out drops within a question. We have not run that test, and
 flag it as the most promising follow-up in the data already collected.
+
+**Pruning works; picking a pruner barely matters.** These two sit together and
+are easy to state as though they were in tension. Section 4.3 shows the best
+pruner keeping 27% of the context at a cost against the full context that does
+not separate from zero, while no pruner separates from a plain cross-encoder
+baseline in orderings-worth of noise. Both follow from the same fact: the band
+between not pruning at all and reranking-and-truncating is narrow, roughly 0.045
+token-F1 at k = 3, and the ordering noise on any single arm is two to four times
+that. A practitioner should therefore prune, should not agonise over which
+method, and should worry considerably more about the presentation order than
+about either choice. That is a more specific piece of advice than this literature
+usually supports, and it is available only because the placebo and the
+permutation protocol put the differences on a common scale.
 
 **The null in RQ2 is the more uncomfortable finding.** Once a method's gain is
 divided by the permutation noise of a plain cross-encoder baseline, none of the
@@ -894,6 +993,14 @@ comparison of magnitude. A hosted cross-generator replication at 27B is complete
 and reported in Section 4.9; it is a **scale** check within the Qwen lineage, not
 a family check, and it finds the effect intact but roughly four times smaller,
 which bounds how far the magnitudes here should be carried.
+
+**Passages are numbered by presentation position.** The prompt renders each
+passage as `[i] Title: text` where `i` is its slot in the current ordering, which
+is what a deployed pipeline does and is what keeps the permutation from being
+inferable. It does mean a reordering changes the numeric labels as well as the
+positions, so the RQ1 effect is the effect of presentation order inclusive of its
+labelling and not of position in isolation. The registered delimiter-variant
+check would bound this and has not been run (Section 7).
 
 **"Rank" is the dataset's as-given order.** HotpotQA distractor has no retriever,
 so the reference ordering is the dataset's own paragraph order rather than a
@@ -969,6 +1076,19 @@ no-derivatives licence, which restricts reuse of that arm outside research.
 - **The mechanism behind the RQ2 null is untested.** Section 5 proposes that a
   selector's advantage should track the dispersion of per-passage leave-one-out
   drops within a question. The data to test it is already collected.
+- **One registered robustness check was never run.** The analysis plan's
+  robustness list includes a prompt-template variant: an alternative delimiter
+  style, identical to the main template in instruction wording and answer cue and
+  differing only in how passages are fenced. It is implemented (`ALT_TEMPLATE`,
+  reachable as `prompt_template: alt`) and guarded by a test asserting it differs
+  from the default in the delimiters alone, but no config uses it and it has no
+  results. It should be run, and it is cheap — one arm, one budget, the existing
+  population, roughly 1,400 local generations. It matters more than its size
+  suggests, because passages are numbered by presentation position (`[1]`, `[2]`,
+  …), so a reordering changes those labels as well as the semantic order, and
+  this is the check that bounds how much of the RQ1 effect is the numbering
+  rather than the position. Reported here as an omission rather than left to be
+  discovered from the plan.
 - **A second dataset is prepared but not run.** The loader and config for
   2WikiMultihopQA exist and are tested, so the protocol transfers without
   modification: the same ten paragraphs per question and the same column layout.

@@ -1,7 +1,7 @@
 # NOTE: make is not installed on this machine; see README for raw equivalents.
 PY := .venv/Scripts/python.exe
 
-.PHONY: smoke pilot gate main oracle main-no-oracle replication replication-xfamily audit figures test clean
+.PHONY: smoke pilot gate main oracle main-no-oracle replication replication-xfamily audit analyze generator-comparison figures test test-all dummy clean
 
 # Verify CUDA, checkpoint load, greedy determinism and answer log-probs.
 # Run this before burning an overnight on the main grid.
@@ -64,10 +64,26 @@ replication-xfamily:
 audit:
 	$(PY) -m src.run --config configs/replication.yaml --audit 50
 
+# RQ1-RQ4 over a finished run. CPU only, ~70 minutes at 10,000 replicates;
+# checkpointed per budget, so an interruption keeps the budgets already done.
+analyze:
+	$(PY) -m src.analyze --config configs/main.yaml
+
+# The matched 3B-vs-27B comparison behind WRITEUP Sec. 4.9. Needs both
+# results/main_hotpotqa/ and results/replication_groq/ to exist.
+generator-comparison:
+	$(PY) -m src.generator_comparison
+
 figures:
 	$(PY) -m src.run --config configs/main.yaml --figures-only
 
+# The documented invocation: three tests carry the `network` marker and download
+# the dataset on first run, so the default excludes them. `test-all` includes
+# them. A bare `pytest -q` here would not match what README and HANDOFF quote.
 test:
+	$(PY) -m pytest -q -m "not network"
+
+test-all:
 	$(PY) -m pytest -q
 
 # Plumbing check with no GPU. Its numbers are meaningless by construction.

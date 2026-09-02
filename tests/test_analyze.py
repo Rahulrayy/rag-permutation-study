@@ -20,6 +20,7 @@ from src.analyze import (
     PRIMARY_ENDPOINT,
     analyze,
     analyze_budget,
+    answer_stability,
     load_scores,
 )
 from src.run import Config
@@ -105,6 +106,51 @@ def test_missing_required_arm_is_rejected(tmp_path):
     with pytest.raises(ValueError, match="loo_oracle"):
         analyze_budget(scores, "rerank_topk", "placebo_pos:middle_first",
                        "loo_oracle", n_replicates=20, ci=0.95, seed=1)
+
+
+def test_answer_stability_separates_score_moves_from_answer_moves(tmp_path):
+    """A zero within-question SD means the score held, not the answer.
+
+    Conflating the two is what put a hand-computed figure in the write-up under
+    the wrong label. The two identity notions must be reported separately,
+    because they disagree on real data.
+    """
+    path = tmp_path / "g.csv"
+    fields = ["qid", "arm", "budget", "perm", "perm_strategy", "hop_type", "kept",
+              "order", "gold_positions", "n_gold_kept", "context_chars",
+              "prediction", "gold", "em", "f1"]
+    # q0 stable; q1 same score, different answer; q2 same score, case-only
+    # difference; q3 score moves.
+    cells = {
+        "q0": [(0.5, "Paris"), (0.5, "Paris")],
+        "q1": [(0.0, "Rome"), (0.0, "Berlin")],
+        "q2": [(0.5, "Paris"), (0.5, "paris")],
+        "q3": [(1.0, "Paris"), (0.0, "Rome")],
+    }
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=fields)
+        w.writeheader()
+        for q, vals in cells.items():
+            for i, (f1, pred) in enumerate(vals):
+                w.writerow({"qid": q, "arm": "full", "budget": "3", "perm": i,
+                            "perm_strategy": "s", "hop_type": "bridge", "kept": "[]",
+                            "order": "[]", "gold_positions": "[]", "n_gold_kept": 1,
+                            "context_chars": 10, "prediction": pred, "gold": "Paris",
+                            "em": 0, "f1": f1})
+    out = answer_stability(path, "3")
+    assert out["n_queries"] == 4
+    assert out["score_moved"] == 1                    # q3
+    assert out["zero_sd"] == 3                        # q0, q1, q2
+    assert out["zero_sd_but_different_answer"] == 2   # q1 and q2
+    # q2 differs only in case: byte-identical says no, casefold says yes.
+    assert out["identical"] == 1                      # q0
+    assert out["identical_casefold"] == 2             # q0, q2
+
+
+def test_answer_stability_rejects_an_absent_arm(tmp_path):
+    csv_path = _write_csv(tmp_path / "g.csv")
+    with pytest.raises(ValueError, match="no rows for arm"):
+        answer_stability(csv_path, "3", arm="not_an_arm")
 
 
 def test_no_oracle_arm_is_allowed(tmp_path):

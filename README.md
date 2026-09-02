@@ -38,9 +38,9 @@ questions swing by about 0.39 token-F1, which is enormous. There is no "typical"
 question: the distribution has two modes and almost nothing in between.
 
 Being careful about what "unchanged" means: on the other half the *score* does not
-move, but the model still gives a different answer on 14% of all questions, wrong
-in a different way each time and scoring zero either way. Only **36%** of
-questions return the identical answer under all five orderings.
+move, but the model still gives a different answer on 15% of all questions, wrong
+in a different way each time and scoring zero either way. Only **35%** of
+questions return a byte-identical answer under all five orderings.
 
 ![Within-question variation under reordering](results/main_hotpotqa/figures/rq1_permutation_sd.png)
 
@@ -61,7 +61,14 @@ separate from simple rerank-and-truncate. The one arm that clears that bar is a
 cheating upper bound that peeks at the answer. The short version: **the method
 you choose matters less than the order you happen to feed it in.**
 
-**4. Two methods are order-dependent inside themselves, not just in their
+**4. Pruning itself is close to free; choosing a pruner is what does not
+matter.** Against keeping all ten passages, the best pruner keeps **27% of the
+context** for a loss of **0.011 token-F1** that does not separate from zero
+([-0.0510, +0.0284]). A plain rerank-and-truncate loses 0.045 and does separate.
+So the advice is: prune, do not agonise over which method, and worry about the
+ordering more than about either choice.
+
+**5. Two methods are order-dependent inside themselves, not just in their
 scores.** This is the sharper version of the thesis.
 
 - Ask an LLM which passages to keep, then show it the same passages in a
@@ -82,7 +89,7 @@ of cases, and that rate reproduces to four decimal places on a 27B model from a
 different size class (0.2432 against 0.2433), so it is a property of asking a
 model to name k items rather than a quirk of one small model.
 
-**5. The effect survives a 9x jump in model size, at about a quarter the
+**6. The effect survives a 9x jump in model size, at about a quarter the
 size.** A hosted replication on a 27B model was matched to the main run exactly:
 the same questions, the same three orderings, byte-identical passage orders, so
 only the generator differs. Order sensitivity is intact — every interval
