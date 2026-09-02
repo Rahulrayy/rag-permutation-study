@@ -135,7 +135,7 @@ def analyze_budget(
     scores: dict[str, dict[str, list[float]]],
     baseline: str,
     placebo: str,
-    oracle: str,
+    oracle: str | None,
     n_replicates: int,
     ci: float,
     seed: int,
@@ -149,7 +149,9 @@ def analyze_budget(
             "and _boot's arm-narrowing assumes one shared population"
         )
     arms = sorted(scores)
-    for required in (baseline, placebo, oracle):
+    # `oracle` is optional: a hosted-backend config has no loo_oracle arm,
+    # because chat APIs do not return the reference answer's log-prob.
+    for required in filter(None, (baseline, placebo, oracle)):
         if required not in scores:
             raise ValueError(f"arm {required!r} is not in the results")
 
@@ -218,7 +220,11 @@ def analyze_budget(
     out["rq4_placebo_gap"] = rq4
 
     # Descriptive, not tested: a ratio of means with no null worth correcting for.
-    out["oracle_gap"] = {a: oracle_gap(scores, a, oracle) for a in arms if a != oracle}
+    # Absent entirely when there is no oracle arm, rather than present and null:
+    # a reader of the JSON should not have to tell "no oracle was run" apart
+    # from "the oracle gap came out empty".
+    if oracle is not None:
+        out["oracle_gap"] = {a: oracle_gap(scores, a, oracle) for a in arms if a != oracle}
 
     # The confirmatory family. Holm is applied here and nowhere else -- the
     # per-arm blocks above carry raw p-values only, so nothing in them can be
@@ -290,7 +296,7 @@ def analyze(cfg: Config, budgets: Sequence[str] | None = None, metric: str = "f1
         "config": {
             "baseline": met["baseline_arm"],
             "placebo": met["placebo_arm"],
-            "oracle": met["oracle_arm"],
+            "oracle": met.get("oracle_arm"),
             "metric": metric,
             "n_replicates": n_replicates,
             "ci": ci,
@@ -314,7 +320,7 @@ def analyze(cfg: Config, budgets: Sequence[str] | None = None, metric: str = "f1
             scores,
             baseline=met["baseline_arm"],
             placebo=met["placebo_arm"],
-            oracle=met["oracle_arm"],
+            oracle=met.get("oracle_arm"),
             n_replicates=n_replicates,
             ci=ci,
             seed=seed,

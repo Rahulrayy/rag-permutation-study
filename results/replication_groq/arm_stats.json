@@ -1,0 +1,10 @@
+{
+  "llm_pruner": {
+    "cells": 148,
+    "out_of_range": 0,
+    "over_selected": 0,
+    "under_selected": 36,
+    "under_selected_rate": 0.24324324324324326,
+    "unparseable": 0
+  }
+}

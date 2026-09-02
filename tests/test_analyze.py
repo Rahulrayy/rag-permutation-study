@@ -107,6 +107,22 @@ def test_missing_required_arm_is_rejected(tmp_path):
                        "loo_oracle", n_replicates=20, ci=0.95, seed=1)
 
 
+def test_no_oracle_arm_is_allowed(tmp_path):
+    """A hosted-backend config has no loo_oracle arm at all -- chat APIs do not
+    return the reference answer's log-prob -- and configs/replication.yaml
+    therefore omits `oracle_arm`. The analysis must run without it rather than
+    dying on a KeyError, and must omit the oracle gap rather than report a
+    null one."""
+    csv_path = _write_csv(tmp_path / "g.csv")
+    scores = load_scores(csv_path, "f1", "3")
+    scores.pop("loo_oracle")
+    out = analyze_budget(scores, "rerank_topk", "placebo_pos:middle_first",
+                         None, n_replicates=50, ci=0.95, seed=1, verbose=False)
+    assert "oracle_gap" not in out
+    assert out["rq1_mean_within_query_sd"]
+    assert out["rq4_placebo_gap"]
+
+
 def test_confirmatory_family_is_the_registered_nine(tmp_path):
     """Holm must be applied over the registered family, never over whatever
     arms happen to be present -- the adjustment depends on the family size."""

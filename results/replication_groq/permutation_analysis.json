@@ -1,0 +1,245 @@
+{
+  "budget_3": {
+    "confirmatory_family": {
+      "members": {
+        "OAE:llm_pruner": {
+          "p_holm": 0.0006000000000000001,
+          "p_raw": 0.0002,
+          "point": 4.063905520630015,
+          "significant_holm": true
+        },
+        "PlaceboGap:llm_pruner": {
+          "p_holm": 0.0006000000000000001,
+          "p_raw": 0.0002,
+          "point": 0.41073888573888573,
+          "significant_holm": true
+        },
+        "PlaceboGap:rerank_topk": {
+          "p_holm": 0.0006000000000000001,
+          "p_raw": 0.0002,
+          "point": 0.2452948702948703,
+          "significant_holm": true
+        }
+      },
+      "primary_endpoint": {
+        "comparison": "placebo_gap of provence_rerank vs placebo_pos:middle_first",
+        "p_holm": null,
+        "p_uncorrected": null
+      },
+      "size": 3
+    },
+    "rq1_mean_within_query_sd": {
+      "full": {
+        "excludes_zero": true,
+        "hi": 0.06773012838271403,
+        "lo": 0.012563269890890003,
+        "point": 0.03686959619253225
+      },
+      "llm_pruner": {
+        "excludes_zero": true,
+        "hi": 0.05660190727949722,
+        "lo": 0.007802030664724687,
+        "point": 0.028781078603731674
+      },
+      "placebo_pos:middle_first": {
+        "excludes_zero": true,
+        "hi": 0.05955550074073168,
+        "lo": 0.00935593510544907,
+        "point": 0.031078088814486624
+      },
+      "rerank_topk": {
+        "excludes_zero": true,
+        "hi": 0.0721387758384543,
+        "lo": 0.014523780160487483,
+        "point": 0.04071059590439671
+      }
+    },
+    "rq2_oae": {
+      "full": {
+        "excludes_zero": true,
+        "hi": 11.259102405526038,
+        "lo": 1.8068538815825648,
+        "p": 0.0002,
+        "point": 3.9363575180228016
+      },
+      "llm_pruner": {
+        "excludes_zero": true,
+        "hi": 12.166035975511399,
+        "lo": 1.7233384750388614,
+        "p": 0.0002,
+        "point": 4.063905520630015
+      },
+      "placebo_pos:middle_first": {
+        "excludes_zero": true,
+        "hi": -2.2439009155261833,
+        "lo": -18.86075072873622,
+        "p": 0.0002,
+        "point": -6.025332345193666
+      }
+    },
+    "rq3_rank_flip_rate": {
+      "arms": [
+        "full",
+        "rerank_topk",
+        "llm_pruner"
+      ],
+      "excludes_zero": false,
+      "hi": 0.2222222222222222,
+      "lo": 0.0,
+      "point": 0.2222222222222222
+    },
+    "rq4_placebo_gap": {
+      "full": {
+        "excludes_zero": true,
+        "hi": 0.5112434562434562,
+        "lo": 0.3013575313575314,
+        "p": 0.0002,
+        "point": 0.40554633054633055
+      },
+      "llm_pruner": {
+        "excludes_zero": true,
+        "hi": 0.5176382457632457,
+        "lo": 0.3078052878052878,
+        "p": 0.0002,
+        "point": 0.41073888573888573
+      },
+      "rerank_topk": {
+        "excludes_zero": true,
+        "hi": 0.3807465394965394,
+        "lo": 0.10897728772728774,
+        "p": 0.0002,
+        "point": 0.2452948702948703
+      }
+    }
+  },
+  "budget_5": {
+    "confirmatory_family": {
+      "members": {
+        "OAE:llm_pruner": {
+          "p_holm": 0.0006000000000000001,
+          "p_raw": 0.0002,
+          "point": 6.59377503596879,
+          "significant_holm": true
+        },
+        "PlaceboGap:llm_pruner": {
+          "p_holm": 0.0006000000000000001,
+          "p_raw": 0.0002,
+          "point": 0.2820974820974821,
+          "significant_holm": true
+        },
+        "PlaceboGap:rerank_topk": {
+          "p_holm": 0.0042,
+          "p_raw": 0.0042,
+          "point": 0.17604197604197605,
+          "significant_holm": true
+        }
+      },
+      "primary_endpoint": {
+        "comparison": "placebo_gap of provence_rerank vs placebo_pos:middle_first",
+        "p_holm": null,
+        "p_uncorrected": null
+      },
+      "size": 3
+    },
+    "rq1_mean_within_query_sd": {
+      "full": {
+        "excludes_zero": true,
+        "hi": 0.06773012838271403,
+        "lo": 0.012563269890890003,
+        "point": 0.03686959619253225
+      },
+      "llm_pruner": {
+        "excludes_zero": true,
+        "hi": 0.05755548018763976,
+        "lo": 0.009742535727489544,
+        "point": 0.030547950833422002
+      },
+      "placebo_pos:middle_first": {
+        "excludes_zero": true,
+        "hi": 0.08972335264433375,
+        "lo": 0.02184568586122909,
+        "point": 0.053313876208951935
+      },
+      "rerank_topk": {
+        "excludes_zero": true,
+        "hi": 0.039970403251589494,
+        "lo": 1.5618634624107305e-17,
+        "point": 0.016084186293432418
+      }
+    },
+    "rq2_oae": {
+      "full": {
+        "excludes_zero": true,
+        "hi": 6507346705426310.0,
+        "lo": 1.7478873685500025,
+        "p": 0.0002,
+        "point": 6.326232480523419
+      },
+      "llm_pruner": {
+        "excludes_zero": true,
+        "hi": 6787630037127697.0,
+        "lo": 1.9079454263795883,
+        "p": 0.0002,
+        "point": 6.59377503596879
+      },
+      "placebo_pos:middle_first": {
+        "excludes_zero": true,
+        "hi": -2.551042897802747,
+        "lo": -1.1205861651251142e+16,
+        "p": 0.0042,
+        "point": -10.945034634040422
+      }
+    },
+    "rq3_rank_flip_rate": {
+      "arms": [
+        "full",
+        "rerank_topk",
+        "llm_pruner"
+      ],
+      "excludes_zero": false,
+      "hi": 0.2222222222222222,
+      "lo": 0.0,
+      "point": 0.0
+    },
+    "rq4_placebo_gap": {
+      "full": {
+        "excludes_zero": true,
+        "hi": 0.3801111688611689,
+        "lo": 0.17860896610896615,
+        "p": 0.0002,
+        "point": 0.2777942777942778
+      },
+      "llm_pruner": {
+        "excludes_zero": true,
+        "hi": 0.38510337260337263,
+        "lo": 0.18281156156156161,
+        "p": 0.0002,
+        "point": 0.2820974820974821
+      },
+      "rerank_topk": {
+        "excludes_zero": true,
+        "hi": 0.29749682374682374,
+        "lo": 0.05299924924924929,
+        "p": 0.0042,
+        "point": 0.17604197604197605
+      }
+    }
+  },
+  "config": {
+    "baseline": "rerank_topk",
+    "budgets_analyzed": [
+      "5",
+      "3"
+    ],
+    "ci": 0.95,
+    "excluded_arms": [
+      "nocontext"
+    ],
+    "metric": "f1",
+    "n_replicates": 10000,
+    "oracle": null,
+    "placebo": "placebo_pos:middle_first",
+    "primary_budget": "5",
+    "seed": 20260828
+  }
+}
