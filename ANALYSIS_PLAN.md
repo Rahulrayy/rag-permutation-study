@@ -129,7 +129,7 @@ selection at this budget — its apparent gain is positional promotion, which th
 placebo reproduces without reading the passages.
 
 Chosen over OAE because plan Sec. 3 names RQ4 the centerpiece and the
-position-matched placebo the control nobody runs. OAE remains the headline
+position-matched placebo the primary control. OAE remains the headline
 *descriptive* quantity (plan Sec. 4.5) and is reported prominently, but it is
 secondary to this.
 

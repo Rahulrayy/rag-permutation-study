@@ -11,10 +11,6 @@ context selection in RAG.
 
 ## The plain-English version
 
-*Skip this if you work on retrieval. It is here because people keep asking me
-what the project is over dinner, and "a permutation-controlled re-evaluation of
-context selection" is not an answer.*
-
 When a chatbot answers a question by looking things up, something has to fetch
 the relevant documents and paste them into the model's prompt. Ten paragraphs,
 say. Long prompts are slow and expensive, so there is now a whole category of
@@ -26,14 +22,14 @@ Two things were already known. Language models care about the order things appea
 in their prompt, so the same paragraphs in a different sequence can produce a
 different answer. And pruning tools throw paragraphs away.
 
-Nobody had put those together. When you delete paragraphs 3, 5 and 7 from a list
-of ten, you do not only remove them. You promote everything underneath.
+Those two facts interact. When you delete paragraphs 3, 5 and 7 from a list of
+ten, you do not only remove them. You promote everything underneath.
 Paragraph 8 slides up into a more prominent slot. So when a pruning tool looks
 like it is working, some of that might not be careful selection at all. It might
 be lucky repositioning. And because every published evaluation uses one fixed
-order, nobody would ever catch it.
+order, it has no way of telling the two apart.
 
-So I ran two controls that nobody runs.
+So I ran two controls.
 
 The first is just shuffling. Ask the same question five times over, with the
 surviving paragraphs in a different order each time. Same words, same content,
@@ -60,7 +56,7 @@ set out to show these tools might be fooling everyone, and they are not.
 **But they barely beat a very crude baseline.** The gap between a sophisticated
 pruner and a simple one turns out to be smaller than the wobble you get from
 reshuffling the same paragraphs. Which method you pick matters less than a
-formatting decision nobody writes down.
+formatting decision that usually goes unreported.
 
 **Pruning is still worth doing.** Keep about a quarter of the text and answer
 quality does not measurably drop, at least on the one thing I measured. Speed and
@@ -102,7 +98,7 @@ away. All of them are evaluated with the passages in one fixed order.
 Separately, it is well known that language models are sensitive to the order of
 what is in their prompt.
 
-Nobody had put those two facts together, and they interact. Pruning does not only
+Those two facts interact. Pruning does not only
 remove passages, it **moves the survivors into new positions**. Drop passages 3,
 5 and 7 from a ten-passage context and passages 8, 9 and 10 get promoted into
 more visible slots. So part of what looks like better evidence selection could
@@ -110,7 +106,7 @@ just be a lucky interaction with position, measured against a reference point
 that moves when the method acts.
 
 This study separates the two. It is not a new pruning method. It is an evaluation
-protocol, two controls nobody runs, and a set of numbers.
+protocol, two controls, and a set of numbers.
 
 ---
 

@@ -236,7 +236,7 @@ keep-count must mark them, and mine do.
 | `placebo_pos` | drop k by position, not content, in three variants |
 | `loo_oracle` | keep the k passages with the largest leave-one-out log-probability drop |
 
-The placebo is the novel control. It discards exactly as many passages as the
+The placebo is the study's own control. It discards exactly as many passages as the
 method under test, but chooses them by position alone and never reads their
 content. If a method cannot beat it at equal keep-count, the method is not doing
 content selection.
@@ -620,8 +620,9 @@ this number bounds the instability from below.
 
 The consequence for the literature is that a published LLM-pruner result is one
 draw from a distribution over selections that its paper does not report. As noted
-in Section 2, the underlying order sensitivity is not itself novel; what is new
-is that it reaches the selection step and that no evaluation controls for it.
+in Section 2, the underlying order sensitivity is not itself new; what this adds
+is that it reaches the selection step, and that the standard evaluation does not
+control for it.
 
 **LLMLingua-2's compression is also order-dependent**, when applied in the usual
 way to a concatenated context. Asking whether a given passage's surviving text is
