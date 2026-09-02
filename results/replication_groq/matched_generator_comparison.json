@@ -18,7 +18,7 @@
         "p": 0.0002,
         "point": 0.12943020864047144
       },
-      "ratio_3B_over_27B": 4.4630471974849755
+      "ratio": 4.4630471974849755
     },
     "llm_pruner": {
       "27B": {
@@ -38,7 +38,7 @@
         "p": 0.0048,
         "point": 0.07321884967455057
       },
-      "ratio_3B_over_27B": 3.509614276605483
+      "ratio": 3.509614276605483
     },
     "placebo_pos:middle_first": {
       "27B": {
@@ -58,7 +58,7 @@
         "p": 0.394,
         "point": 0.01876543225579362
       },
-      "ratio_3B_over_27B": 1.5956558475625757
+      "ratio": 1.5956558475625757
     },
     "rerank_topk": {
       "27B": {
@@ -78,13 +78,17 @@
         "p": 0.055,
         "point": 0.04869419562152796
       },
-      "ratio_3B_over_27B": 2.179942589486363
+      "ratio": 2.179942589486363
     }
   },
   "budget": "3",
-  "n_main_population": 274,
+  "labels": [
+    "3B",
+    "27B"
+  ],
+  "n_27B_population": 74,
+  "n_3B_population": 274,
   "n_replicates": 10000,
-  "n_replication_population": 74,
   "n_shared_queries": 73,
   "order_cells_verified_identical": 219,
   "perms": [

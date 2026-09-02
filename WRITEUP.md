@@ -853,7 +853,7 @@ registered confirmatory family. Under Holm across the four, `full` (0.0008) and
 `llm_pruner` (0.0144) survive and the other two do not.
 
 **The reading.** Order sensitivity is not an artifact of a small model: every
-27B interval excludes zero. But it is materially smaller, and how much smaller
+27B interval excludes zero at k = 3. But it is materially smaller, and how much smaller
 depends on how much positional room the arm has. On the un-pruned ten-passage
 context the 3B's SD is **4.5x** the 27B's and the difference is unambiguous. On
 the two arms that keep three passages the difference does not separate from zero
@@ -877,6 +877,16 @@ dropping at 27B too.
 **And the LLM pruner's budget defect is scale-invariant.** Over the 27B's 148
 selection cells it names fewer passages than asked in 36, a rate of **0.2432**
 against **0.2433** locally. Section 4.6 has the reading.
+
+**One interval at k = 5 does not clear zero**, and it is worth naming rather
+than leaving in a JSON: `rerank_topk`'s within-question SD is 0.0161 with a lower
+bound of 1.6e-17, which is floating-point noise and not a positive bound. That is
+the same arm and budget whose near-zero SD makes the OAE unusable there (Section
+6), and the two facts have one cause: with five of ten passages kept, this
+generator is close to order-insensitive on this arm. `BootstrapResult` now
+applies a zero-tolerance so an interval like that is reported as touching zero
+instead of excluding it; the change moves exactly this one flag out of the 193
+the study reports, the next-closest coming no nearer to zero than 0.0078.
 
 What this does not do is settle generality. It is a **scale** check within one
 training lineage, on one dataset, with one hosted model, and Section 6 keeps it
@@ -954,7 +964,8 @@ choice.
 care.** Section 4.9 puts the 3B's un-pruned permutation SD at 4.5x the 27B's on
 matched questions and matched orderings. Neither the optimistic reading nor the
 dismissive one survives that number. The effect is not a small-model artifact:
-every interval at 27B excludes zero, and a model people would actually deploy
+every interval at 27B excludes zero at the primary budget, and a model people
+would actually deploy
 still answers 16% of questions differently depending on passage order alone. But
 it is not the same size, so the headline instance-level figures in Section 4.1 —
 half of questions moving, a 0.39 median swing — belong to the 3B and should not

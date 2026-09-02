@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import combinations
-from typing import Callable, Mapping, Sequence
+from typing import Callable, ClassVar, Mapping, Sequence
 
 import numpy as np
 
@@ -33,9 +33,20 @@ class BootstrapResult:
     def __repr__(self) -> str:  # readable in notebooks
         return f"{self.point:.4f} [{self.lo:.4f}, {self.hi:.4f}] ({self.ci:.0%} CI)"
 
+    #: Distances below this are floating-point noise, not evidence. A bound of
+    #: 1.6e-17 is how a percentile interval reports "touches zero" when every
+    #: replicate happens to land on the same side of it by cancellation error,
+    #: and without a tolerance `excludes_zero` calls that significant. It found
+    #: its way into a published artifact once -- the 27B replication's RQ1 for
+    #: `rerank_topk` at k=5, lo = 1.56e-17 -- which is what this guards against.
+    #: Every real interval in this study clears the tolerance by ten orders of
+    #: magnitude: the next-closest of the 193 currently reported as excluding
+    #: zero comes no nearer than 0.0078.
+    ZERO_TOL: ClassVar[float] = 1e-12
+
     @property
     def excludes_zero(self) -> bool:
-        return (self.lo > 0) or (self.hi < 0)
+        return (self.lo > self.ZERO_TOL) or (self.hi < -self.ZERO_TOL)
 
     def p_two_sided(self) -> float:
         """Bootstrap p-value. Secondary presentation only -- CIs are primary.

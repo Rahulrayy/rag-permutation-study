@@ -93,7 +93,8 @@ model to name k items rather than a quirk of one small model.
 size.** A hosted replication on a 27B model was matched to the main run exactly:
 the same questions, the same three orderings, byte-identical passage orders, so
 only the generator differs. Order sensitivity is intact — every interval
-excludes zero — but on an un-pruned context the 3B's swing is **4.5x** the 27B's
+excludes zero at the primary budget — but on an un-pruned context the 3B's swing
+is **4.5x** the 27B's
 (0.1668 against 0.0374, paired difference 0.1294 [0.0679, 0.1910]). The 27B
 still answers 16% of questions differently on order alone. So the *protocol*
 transfers and the *magnitudes* do not, and the numbers above should be read as

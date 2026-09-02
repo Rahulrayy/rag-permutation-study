@@ -57,8 +57,8 @@ def runs(tmp_path, monkeypatch):
 def test_restricts_to_shared_queries_and_shared_perms(runs):
     out = mgc.main(n_replicates=50)
     assert out["n_shared_queries"] == 5
-    assert out["n_main_population"] == 7
-    assert out["n_replication_population"] == 5
+    assert out["n_3B_population"] == 7
+    assert out["n_27B_population"] == 5
     assert out["perms"] == ["0", "1", "2"]
     # 5 queries x 3 perms, checked on the `full` arm.
     assert out["order_cells_verified_identical"] == 15

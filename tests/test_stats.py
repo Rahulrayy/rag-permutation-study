@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from src.metrics import placebo_gap
-from src.stats import holm, two_level_bootstrap
+from src.stats import BootstrapResult, holm, two_level_bootstrap
 
 
 def _nested_scores(n_queries=40, n_perms=5, seed=0):
@@ -141,3 +141,30 @@ def test_p_value_ignores_non_finite_replicates():
     reps = np.array([1.0, 1.0, 1.0, np.nan])
     res = BootstrapResult(point=1.0, lo=1.0, hi=1.0, ci=0.95, replicates=reps)
     assert res.p_two_sided() == pytest.approx(2 / 3)
+
+
+def test_excludes_zero_ignores_floating_point_noise():
+    """A bound of 1.6e-17 is cancellation error, not evidence.
+
+    Regression for a flag that reached a published artifact: the 27B
+    replication's RQ1 for `rerank_topk` at k=5 came back lo = 1.5618e-17 and was
+    reported as excluding zero. Every real interval in the study clears the
+    tolerance by ten orders of magnitude, so the guard cannot suppress a finding.
+    """
+    noise = BootstrapResult(point=0.0161, lo=1.5618634624107305e-17, hi=0.03997,
+                            ci=0.95, replicates=np.array([0.01]))
+    assert not noise.excludes_zero
+
+    real = BootstrapResult(point=0.2760, lo=0.2223, hi=0.3297,
+                           ci=0.95, replicates=np.array([0.27]))
+    assert real.excludes_zero
+
+    # The nearest real interval the study reports as excluding zero.
+    nearest = BootstrapResult(point=0.02, lo=0.0078, hi=0.05,
+                              ci=0.95, replicates=np.array([0.02]))
+    assert nearest.excludes_zero
+
+    # Symmetric on the negative side.
+    neg = BootstrapResult(point=-0.02, lo=-0.05, hi=-1e-17,
+                          ci=0.95, replicates=np.array([-0.02]))
+    assert not neg.excludes_zero

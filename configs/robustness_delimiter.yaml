@@ -1,0 +1,113 @@
+# Registered robustness check: the prompt-template variant (ANALYSIS_PLAN Sec. 7,
+# plan Sec. 8). Implemented since week 2 and never run until 2026-09-02, when the
+# project audit found it listed as registered with no results and no disclosure.
+#
+# THE QUESTION. RQ1 says reordering an identical context changes the answer for
+# half of all questions. `build_prompt` renders each passage as
+#
+#     [i] Title: text
+#
+# where `i` is its slot in the *current* ordering. That is what a deployed
+# pipeline does, and numbering by original index instead would leak the
+# permutation to the model. But it does mean a reordering changes the numeric
+# labels as well as the semantic positions, so RQ1 as measured is the effect of
+# presentation order *inclusive of its labelling*. A sceptic is entitled to ask
+# how much of it is the model reacting to `[1] [2] [3]` rather than to position.
+#
+# WHAT THIS ISOLATES. ALT_TEMPLATE differs from DEFAULT_TEMPLATE in the
+# delimiters ALONE -- identical instruction wording, identical answer cue,
+# identical per-passage `[i] Title: text` rendering -- fencing the context in
+# <context>...</context>. src/generate.py enforces that at import with a real
+# raise rather than an assert, so the two cannot drift. If the within-question SD
+# survives the delimiter change, the effect is not an artifact of one fencing
+# style. It does NOT isolate the numbering itself, which would need a template
+# that drops `[i]` and is therefore a different prompt, not a delimiter variant.
+#
+# SCOPE, and why it is this small. RQ1 is a property of the `full` arm: ten
+# passages, the most permutable slots, and the arm the headline number is quoted
+# from. One budget, because `full` ignores k -- its prompt is the same for every
+# budget, so a second budget would add rows and no generations.
+#
+#     274 queries x 5 permutations = 1,370 new generations, ~20 min at 0.5 s/gen
+#     + nocontext, already cached and template-independent (see below)
+#
+# The `nocontext` arm is here because memorization_filter needs its predictions
+# and run.py raises without them. It costs nothing: build_prompt short-circuits
+# to NOCONTEXT_TEMPLATE when there are no chunks, ignoring the template
+# argument entirely, so those 300 generations are the main run's and replay from
+# cache. That also means this config filters to the same 274 queries as
+# configs/main.yaml, which is what makes the comparison paired.
+#
+#     python -m src.run --config configs/robustness_delimiter.yaml
+#     python -m src.delimiter_check
+name: robustness_delimiter
+
+# Every field below is copied from configs/main.yaml unchanged, deliberately.
+# The only intended difference between the two runs is `prompt_template`, and a
+# drifted seed or population would confound the check with a sampling change.
+prompt_template: alt
+
+data:
+  dataset: hotpotqa_distractor
+  split: validation
+  n_queries: 300
+  seed: 20260828
+  stratify_by: hop_type
+  memorization_filter:
+    metric: em
+    threshold: 1.0
+
+generator:
+  backend: local
+  model: Qwen/Qwen2.5-3B-Instruct
+  quantization: 4bit
+  max_new_tokens: 32
+  temperature: 0.0
+  do_sample: false
+  seed: 20260828
+  batch_size: 2
+  batch_pause_s: 0.1
+  max_vram_fraction: 0.75
+
+arms:
+  - nocontext
+  - full
+
+# One budget. `full` ignores it (budget_is_keep_count is False), so [2, 3, 5]
+# would triple the rows and generate nothing extra. 3 is the registered primary.
+budgets: [3]
+
+permutation:
+  n_permutations: 5
+  strategies: [rank, reverse, random, random, random]
+  seed: 20260828
+
+# The permutation seed and strategies match main.yaml exactly, so for every
+# query the two runs present the SAME five orderings of the SAME ten passages.
+# src.delimiter_check asserts that from the `order` column rather than trusting
+# it, the same way src.generator_comparison does for the 27B replication.
+
+metrics:
+  baseline_arm: full
+  placebo_arm: full
+  primary_budget: 3
+  # No oracle_arm: loo_oracle is not in this run. src.analyze tolerates that
+  # since 2026-09-02; there is nothing here to analyse with it anyway, because
+  # this config exists for RQ1's within-question SD and not for a method
+  # comparison.
+
+stats:
+  bootstrap_replicates: 10000
+  ci: 0.95
+  correction: holm
+  seed: 20260828
+
+cache:
+  # Shared, and safe: cache_key hashes the prompt, so the alt template's prompts
+  # cannot collide with the default's. That is also why this run costs 1,370
+  # generations rather than replaying the main run for free.
+  backend: sqlite
+  path: cache/generations.sqlite
+
+output:
+  results_dir: results/robustness_delimiter

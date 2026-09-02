@@ -1,5 +1,19 @@
 {
   "budget_3": {
+    "answer_stability": {
+      "arm": "full",
+      "budget": "3",
+      "identical": 62,
+      "identical_casefold": 62,
+      "identical_casefold_share": 0.8378378378378378,
+      "identical_share": 0.8378378378378378,
+      "n_permutations": 3,
+      "n_queries": 74,
+      "score_moved": 18,
+      "score_moved_share": 0.24324324324324326,
+      "zero_sd": 56,
+      "zero_sd_but_different_answer": 3
+    },
     "confirmatory_family": {
       "members": {
         "OAE:llm_pruner": {
@@ -113,6 +127,20 @@
     }
   },
   "budget_5": {
+    "answer_stability": {
+      "arm": "full",
+      "budget": "5",
+      "identical": 62,
+      "identical_casefold": 62,
+      "identical_casefold_share": 0.8378378378378378,
+      "identical_share": 0.8378378378378378,
+      "n_permutations": 3,
+      "n_queries": 74,
+      "score_moved": 18,
+      "score_moved_share": 0.24324324324324326,
+      "zero_sd": 56,
+      "zero_sd_but_different_answer": 3
+    },
     "confirmatory_family": {
       "members": {
         "OAE:llm_pruner": {
@@ -161,7 +189,7 @@
         "point": 0.053313876208951935
       },
       "rerank_topk": {
-        "excludes_zero": true,
+        "excludes_zero": false,
         "hi": 0.039970403251589494,
         "lo": 1.5618634624107305e-17,
         "point": 0.016084186293432418
