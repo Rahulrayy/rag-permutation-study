@@ -61,12 +61,12 @@ separate from simple rerank-and-truncate. The one arm that clears that bar is a
 cheating upper bound that peeks at the answer. The short version: **the method
 you choose matters less than the order you happen to feed it in.**
 
-**4. Pruning itself is close to free; choosing a pruner is what does not
-matter.** Against keeping all ten passages, the best pruner keeps **27% of the
-context** for a loss of **0.011 token-F1** that does not separate from zero
-([-0.0510, +0.0284]). A plain rerank-and-truncate loses 0.045 and does separate.
-So the advice is: prune, do not agonise over which method, and worry about the
-ordering more than about either choice.
+**4. Pruning itself, though, is close to free.** Against keeping all ten
+passages, the best pruner keeps **27% of the context** for a loss of **0.011
+token-F1** that does not separate from zero ([-0.0510, +0.0284]); a plain
+rerank-and-truncate loses 0.045 and does separate. Taken with (3), the advice
+is specific: prune, do not agonise over which method, and worry about the
+presentation order more than about either choice.
 
 **5. Two methods are order-dependent inside themselves, not just in their
 scores.** This is the sharper version of the thesis.
@@ -103,9 +103,10 @@ ordering effect is not.
 
 ![Matched 3B vs 27B permutation SD](results/replication_groq/figures/matched_generator_sd.png)
 
-**Memorization is not the explanation.** Only 10% of questions can be answered
-with no passages at all, and the analysis is restricted to the questions the
-model gets wrong without context. Worth knowing for anyone reusing the protocol:
+**Memorization is not the explanation.** Only **8.7%** of questions can be
+answered exactly with no passages at all, and the analysis is restricted to the
+questions the model gets wrong without context, where the no-context score is
+0.0089 token-F1. Worth knowing for anyone reusing the protocol:
 that rate triples with scale, to 26% on the 27B, which is why the filter is
 recomputed per generator rather than shared.
 

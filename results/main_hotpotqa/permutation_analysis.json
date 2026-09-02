@@ -1,5 +1,19 @@
 {
   "budget_2": {
+    "answer_stability": {
+      "arm": "full",
+      "budget": "2",
+      "identical": 96,
+      "identical_casefold": 98,
+      "identical_casefold_share": 0.35766423357664234,
+      "identical_share": 0.35036496350364965,
+      "n_permutations": 5,
+      "n_queries": 274,
+      "score_moved": 137,
+      "score_moved_share": 0.5,
+      "zero_sd": 137,
+      "zero_sd_but_different_answer": 41
+    },
     "confirmatory_family": {
       "members": {
         "OAE:llm_pruner": {
@@ -295,6 +309,20 @@
     }
   },
   "budget_3": {
+    "answer_stability": {
+      "arm": "full",
+      "budget": "3",
+      "identical": 96,
+      "identical_casefold": 98,
+      "identical_casefold_share": 0.35766423357664234,
+      "identical_share": 0.35036496350364965,
+      "n_permutations": 5,
+      "n_queries": 274,
+      "score_moved": 137,
+      "score_moved_share": 0.5,
+      "zero_sd": 137,
+      "zero_sd_but_different_answer": 41
+    },
     "confirmatory_family": {
       "members": {
         "OAE:llm_pruner": {
@@ -590,6 +618,20 @@
     }
   },
   "budget_5": {
+    "answer_stability": {
+      "arm": "full",
+      "budget": "5",
+      "identical": 96,
+      "identical_casefold": 98,
+      "identical_casefold_share": 0.35766423357664234,
+      "identical_share": 0.35036496350364965,
+      "n_permutations": 5,
+      "n_queries": 274,
+      "score_moved": 137,
+      "score_moved_share": 0.5,
+      "zero_sd": 137,
+      "zero_sd_but_different_answer": 41
+    },
     "confirmatory_family": {
       "members": {
         "OAE:llm_pruner": {

@@ -600,6 +600,17 @@ assumed: a cross-encoder run through the same three permutations returns
 selection changed in 98 of 100 questions, and in 23 of them the three
 presentations produced sets with no passage in common at all.**
 
+**That figure is if anything generous to the method.** The probe measures the
+selections the arm actually returns, which are post-repair: when the model names
+fewer than k passages — 24.3% of cells, reported below — the deficit is filled
+deterministically from the as-given order, and that fill is *identical across
+presentations* because it sorts by the dataset's own order rather than the
+presented one. Every repaired slot therefore agrees across the three orderings by
+construction and pushes the Jaccard up. The underlying model selections are less
+stable than 0.213, not more. The repair is the right behaviour for the grid,
+where the matched-keep-count comparison requires exactly k passages, but it means
+this number bounds the instability from below.
+
 The consequence for the literature is that a published LLM-pruner result is one
 draw from a distribution over selections that its paper does not report. As noted
 in Section 2, the underlying order sensitivity is not itself novel; what is new
