@@ -25,15 +25,17 @@ are confounded in the standard evaluation.
 This study separates them. Holding passage content fixed, I generate answers
 under five orderings of every retained context, and introduce a
 position-matched placebo that drops the same number of passages by position
-alone. Across 45,510 generations covering eleven arms, 274 questions, three
+alone. The setting is HotpotQA distractor with a 4-bit Qwen2.5-3B-Instruct
+generator under greedy decoding, and every quantity below is token-F1 in that
+setting. Across 45,510 generations covering eleven arms, 274 questions, three
 budgets and five permutations, I find three things. First, reordering an
-identical context changes the score for half of all questions, and for those
-questions the swing is large, with a median within-question standard deviation of
-0.39 token-F1. Only 35% of questions return a byte-identical answer under all
-five orderings. Second, the pre-registered primary endpoint is
-clearly positive: published pruners beat the position-matched placebo at equal
-keep-count by 0.2760 token-F1 (95% CI [0.2223, 0.3297], Holm-adjusted p = 0.0018),
-so their gains are genuine content selection rather than positional promotion.
+identical context changes the score for half of all questions, with a median
+within-question standard deviation of 0.39 token-F1 among those that move. Only
+35% of questions return a byte-identical answer under all five orderings. Second,
+the pre-registered primary endpoint is positive: published pruners beat the
+position-matched placebo at equal keep-count by 0.2760 token-F1 (95% CI [0.2223,
+0.3297], Holm-adjusted p = 0.0018), so their gains reflect content selection
+rather than positional promotion.
 Third, and in tension with the second, no practical pruner separates from a plain
 cross-encoder top-k baseline once the gain is measured in units of the baseline's
 own permutation noise. I also show that order dependence reaches inside two of
@@ -452,8 +454,9 @@ positional configurations at identical keep-count:
 | `random_drop` | uniform | 0.569 | 0.1672 |
 | `provence_rerank` | uniform | **1.686** | **0.4621** |
 
-Across four arms whose positional profiles could hardly differ more, the score
-varies by **0.019 token-F1**. The primary endpoint is **0.2760**. So position
+Across four arms whose positional profiles differ substantially — a fixed
+three-point set at each end of the context, one in the middle, and a uniform
+draw — the score varies by **0.019 token-F1**. The primary endpoint is **0.2760**. So position
 accounts for at most about 7% of the gap and evidence retention for the rest,
 which the gold column shows directly: the pruner retains 1.686 gold passages
 against the placebo's 0.650. The placebo gap is a content effect, and the
@@ -499,9 +502,9 @@ rather than trusted. At k = 3, mean token-F1: `rerank_topk` 0.4279,
 `provence_rerank` 0.4621, `provence_full` 0.3937, `llm_pruner` 0.3825,
 `llmlingua2` 0.3218, `loo_oracle` 0.5398, `full` 0.4731. The best practical
 method is therefore **+0.034 token-F1** over the baseline, against the **+0.276**
-by which it beats the positional placebo. That contrast is the whole of RQ2: the
-cross-encoder baseline is strong, and the remaining headroom above it is small in
-absolute terms before any normalisation is applied.
+by which it beats the positional placebo. That contrast is what RQ2 turns on:
+the cross-encoder baseline is strong, and the remaining headroom above it is
+small in absolute terms before any normalisation is applied.
 
 **What the same numbers say about pruning itself**, which is the question a
 practitioner actually has and which the method-versus-method framing above does
@@ -524,9 +527,10 @@ reduction in context**. The same comparison for the plain cross-encoder baseline
 is -0.0452 [-0.0865, -0.0048] and does exclude zero (p = 0.0300). At k = 5 the
 best pruner keeps 46% of the context for -0.0103.
 
-So the honest practical summary is narrower and more useful than "the methods do
-not separate": **a good pruner buys a large context reduction at a quality cost
-this study cannot distinguish from zero, and a naive one does not.** That is a
+Stated with its scope attached: **in this setting, aggressive pruning reduces
+the context substantially with no statistically distinguishable loss in token-F1
+for the best pruner, and a measurable loss for a naive one.** "Cost" there is
+answer quality alone; Section 6 records what this study does not measure. That is a
 result about pruning as a practice rather than about which pruner to pick, and it
 sits comfortably beside RQ2 — the methods are hard to tell apart from each other,
 and the good ones are hard to tell apart from not pruning, because the whole band
@@ -565,8 +569,10 @@ CI [0.5451, 1.5066]) at the primary budget, which puts the entire headroom from 
 deployed method to a cheating upper bound at roughly one permutation's worth of
 noise.
 
-The summary is that **the choice of pruning method matters less than the ordering
-it happens to be evaluated under**.
+The summary, with its scope attached, is that **on this dataset and this
+generator the choice of pruning method moves token-F1 less than the choice of
+presentation order does**. That is a statement about one measured axis in one
+regime, not a general ordering of what matters in a RAG system.
 
 ### 4.4 RQ3: rankings are far more stable than answers
 
@@ -1046,18 +1052,22 @@ null, and it is testable: a selector's advantage should track the dispersion of
 per-passage leave-one-out drops within a question. I have not run that test, and
 flag it as the most promising follow-up in the data already collected.
 
-**Pruning works; picking a pruner barely matters.** These two sit together and
-are easy to state as though they were in tension. Section 4.3 shows the best
-pruner keeping 27% of the context at a cost against the full context that does
-not separate from zero, while no pruner separates from a plain cross-encoder
-baseline in orderings-worth of noise. Both follow from the same fact: the band
-between not pruning at all and reranking-and-truncating is narrow, roughly 0.045
-token-F1 at k = 3, and the ordering noise on any single arm is two to four times
-that. A practitioner should therefore prune, should not agonise over which
-method, and should worry considerably more about the presentation order than
-about either choice. That is a more specific piece of advice than this literature
-usually supports, and it is available only because the placebo and the
-permutation protocol put the differences on a common scale.
+**Two results that read as a tension and are not.** Section 4.3 shows the best
+pruner keeping 27% of the context at a quality cost that does not separate from
+zero, while no pruner separates from a plain cross-encoder baseline in
+orderings-worth of noise. Both follow from one fact: the band between not pruning
+at all and reranking-and-truncating is narrow — roughly 0.045 token-F1 at k = 3 —
+and the ordering noise on any single arm is two to four times that.
+
+What that licenses, with the qualifications it needs: **on this dataset and this
+generator, and measuring answer quality alone, the difference between pruning
+methods is small relative to the variation induced by presentation order.** It
+does not license a general claim that method choice is unimportant. Methods
+differ in latency, in compute, in selection cost and in how they behave out of
+this distribution, none of which is measured here, and the ordering comparison is
+one generator's positional behaviour rather than a property of language models.
+What is transferable is the protocol — putting a method's gain and its ordering
+noise on a common scale — rather than the numbers it produced.
 
 **The null in RQ2 is the more uncomfortable finding.** Once a method's gain is
 divided by the permutation noise of a plain cross-encoder baseline, none of the
@@ -1188,6 +1198,18 @@ quantity is a ratio and inherits a ratio's behaviour, so any future run on a
 more order-stable generator should check the denominator before quoting an OAE.
 The placebo gap, a difference rather than a ratio, has no such failure mode,
 which is one reason it and not OAE is the registered primary endpoint.
+
+**Only answer quality is measured, on one metric.** Every comparison here is
+token-F1, with input length reported alongside it. Nothing in this study measures
+latency, wall-clock or GPU cost, the compute a pruner spends on its own selection
+step, memory footprint, or behaviour under load — and those differ sharply
+between the arms. A cross-encoder scores ten passages per question, an LLM pruner
+runs a whole extra generation, and Provence and LLMLingua-2 each load a further
+model; the placebo reads nothing at all. So a statement like "the best pruner
+reduces the context to 27% at no measurable quality cost" is about quality and
+context length only, and must not be read as a claim that the pruning is cheap in
+any other sense. Where a shorter context is itself the goal, that is the quantity
+this study speaks to; where end-to-end cost is the goal, it is not.
 
 **Licensing.** The Provence checkpoint is released under a non-commercial,
 no-derivatives licence, which restricts reuse of that arm outside research.

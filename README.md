@@ -32,10 +32,14 @@ protocol, two controls nobody runs, and a set of numbers.
 
 ## What I found
 
+*All of it in one setting: HotpotQA distractor, a 4-bit Qwen2.5-3B-Instruct
+generator, greedy decoding, scored with token-F1. A 27B replication (6) says how
+far the magnitudes carry — not far. The protocol is the part meant to transfer.*
+
 **1. Reordering an identical context changes the answer about half the time.**
 Same passages, same words, greedy decoding, only the order differs. Half of
-questions swing by about 0.39 token-F1, which is enormous. There is no "typical"
-question: the distribution has two modes and almost nothing in between.
+questions swing by about 0.39 token-F1, on a metric bounded at 0 and 1. There is
+no "typical" question: the distribution has two modes and little in between.
 
 Being careful about what "unchanged" means: on the other half the *score* does not
 move, but the model still gives a different answer on 15% of all questions, wrong
@@ -46,8 +50,8 @@ questions return a byte-identical answer under all five orderings.
 
 Not a formatting artifact: re-running the whole thing with the context fenced in
 `<context>` tags instead of bare moves the effect by **0.0047** token-F1
-([-0.0140, 0.0239]), which is nothing. That was a check registered before the
-main run.
+([-0.0140, 0.0239]), a difference that does not separate from zero. That was a
+check registered before the main run.
 
 **What drives it is the number of slots, not only the evidence.** Holding the
 retained gold passages fixed and varying only how many passages the context
@@ -73,15 +77,18 @@ from the placebo, exactly as it should be.
 alone creates.** Measure each method's gain in units of "how much does the score
 move when you just reshuffle the passages", and every practical method fails to
 separate from simple rerank-and-truncate. The one arm that clears that bar is a
-cheating upper bound that peeks at the answer. The short version: **the method
-you choose matters less than the order you happen to feed it in.**
+cheating upper bound that peeks at the answer. Put carefully: **in this setting,
+the spread between pruning methods is smaller than the spread a single method
+shows across orderings of the same passages.**
 
-**4. Pruning itself, though, is close to free.** Against keeping all ten
-passages, the best pruner keeps **27% of the context** for a loss of **0.011
-token-F1** that does not separate from zero ([-0.0510, +0.0284]); a plain
-rerank-and-truncate loses 0.045 and does separate. Taken with (3), the advice
-is specific: prune, do not agonise over which method, and worry about the
-presentation order more than about either choice.
+**4. Aggressive pruning costs little here, on the one axis measured.** Against
+keeping all ten passages, the best pruner reduces the context to **27%** with no
+statistically distinguishable loss in token-F1 (**-0.011**, [-0.0510, +0.0284]);
+a plain rerank-and-truncate loses 0.045 and does separate from zero. Read that
+narrowly: "cost" here means answer quality under token-F1 on this dataset and
+generator. Latency, compute, and the pruner's own selection overhead are not
+measured anywhere in this study, and a reranker or an LLM pruner is not free on
+any of them.
 
 **5. Two methods are order-dependent inside themselves, not just in their
 scores.** This is the sharper version of the thesis.
